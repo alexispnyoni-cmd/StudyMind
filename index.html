@@ -1,0 +1,755 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StudyMind Full</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#09090f; --bg2:#101018; --bg3:#17171f; --bg4:#1f1f2a; --bg5:#27273a;
+  --border:rgba(255,255,255,.06); --border2:rgba(255,255,255,.11); --border3:rgba(255,255,255,.18);
+  --text:#eeeef8; --text2:#9d9db8; --text3:#6d6d87; --text4:#42425a;
+  --accent:#7c6ff7; --accent2:#a89eff; --accent-bg:rgba(124,111,247,.12); --accent-border:rgba(124,111,247,.28);
+  --green:#3fd87a; --green-bg:rgba(63,216,122,.10); --green-border:rgba(63,216,122,.24);
+  --amber:#f5b841; --amber-bg:rgba(245,184,65,.10); --amber-border:rgba(245,184,65,.24);
+  --pink:#f06bba; --pink-bg:rgba(240,107,186,.10); --pink-border:rgba(240,107,186,.24);
+  --teal:#2fcfbe; --teal-bg:rgba(47,207,190,.10); --teal-border:rgba(47,207,190,.24);
+  --red:#f47272; --red-bg:rgba(244,114,114,.10); --red-border:rgba(244,114,114,.24);
+  --radius:12px; --radius2:18px; --font:'Sora',sans-serif; --font-serif:'DM Serif Display',serif; --font-mono:'JetBrains Mono',monospace;
+  --sidebar-w:236px; --topbar-h:58px; --shadow:0 12px 34px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+button,input,textarea,select{font-family:var(--font)}
+button{cursor:pointer;border:none}
+input,textarea,select{outline:none;color:var(--text)}
+::-webkit-scrollbar{width:5px} ::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:6px}
+
+#loading-screen,#auth-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:1000;padding:20px}
+#loading-screen{flex-direction:column;gap:16px}
+.loading-logo,.auth-logo{font-family:var(--font-serif)}
+.loading-logo{font-size:34px}.loading-logo span,.auth-logo span{color:var(--accent2)}
+.loading-bar{width:220px;height:3px;background:var(--bg4);border-radius:999px;overflow:hidden}
+.loading-fill{height:100%;background:var(--accent);animation:load 1.2s infinite}
+@keyframes load{0%{width:0}60%{width:78%}100%{width:100%}}
+.auth-glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:760px;height:620px;border-radius:50%;
+background:radial-gradient(ellipse,rgba(124,111,247,.16),transparent 70%);pointer-events:none}
+.auth-box{width:100%;max-width:440px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:34px 36px;box-shadow:var(--shadow);position:relative;z-index:2}
+.auth-tagline{font-size:12px;color:var(--text3);text-align:center;letter-spacing:.08em;margin-bottom:24px}
+.auth-title{font-size:18px;font-weight:700;margin-bottom:6px}
+.auth-sub{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:18px}
+.form-group{margin-bottom:14px}.label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;font-size:14px}
+.input:focus{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#6b5ee8}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)} .btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.auth-switch{text-align:center;font-size:13px;color:var(--text2);margin-top:16px}.auth-switch a{color:var(--accent2);cursor:pointer;font-weight:600}
+.auth-error,.auth-success{display:none;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+.auth-error{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)}
+.auth-success{background:var(--green-bg);border:1px solid var(--green-border);color:var(--green)}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--text3);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.auth-divider:before,.auth-divider:after{content:"";flex:1;height:1px;background:var(--border2)}
+.auth-google{display:flex;align-items:center;justify-content:center;gap:10px}
+.auth-google svg{width:18px;height:18px;display:block}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
+.role-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2)}
+.role-chip.selected{background:var(--accent-bg);border-color:var(--accent);color:var(--accent2)}
+
+#app{display:none;min-height:100vh} #app.visible{display:flex}
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:50;transition:.2s}
+.sidebar-logo{padding:22px 20px 16px;border-bottom:1px solid var(--border)}
+.logo-wordmark{font-family:var(--font-serif);font-size:22px}.logo-dot{color:var(--accent)}
+.logo-school{font-size:11px;color:var(--text3);margin-top:3px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role-pill{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:8px}
+.role-pill.student{background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border)}
+.role-pill.teacher{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)}
+.role-pill.parent{background:var(--pink-bg);color:var(--pink);border:1px solid var(--pink-border)}
+.role-pill.admin{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.sidebar-nav{flex:1;padding:10px 8px;overflow:auto}
+.nav-section-label{font-size:10px;font-weight:700;color:var(--text4);letter-spacing:.12em;text-transform:uppercase;padding:10px 12px 5px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border:1px solid transparent}
+.nav-item:hover{background:var(--bg3);color:var(--text)} .nav-item.active{background:var(--accent-bg);color:var(--accent2);border-color:var(--accent-border)}
+.nav-icon{width:22px;text-align:center}
+.sidebar-footer{padding:12px 10px;border-top:1px solid var(--border)}
+.sidebar-user{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:10px}
+.user-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}
+.user-name{font-size:13px;font-weight:600}.user-role-label{font-size:11px;color:var(--text2)}
+.logout-btn{width:100%;margin-top:6px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700}
+.main{margin-left:var(--sidebar-w);min-height:100vh;flex:1;display:flex;flex-direction:column}
+.topbar{height:var(--topbar-h);padding:0 26px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:40}
+.topbar-title{font-size:17px;font-weight:700}
+.topbar-right{display:flex;gap:10px;align-items:center}
+.page{padding:28px;max-width:1080px}
+.page-fade{animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:18px 20px}
+.card-sm{padding:14px 16px;border-radius:var(--radius)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.section-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}
+.section-title{font-size:16px;font-weight:700}.section-sub{font-size:12.5px;color:var(--text2);margin-top:3px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
+.badge-purple{background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border)}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge-teal{background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)}
+.badge-ghost{background:var(--bg4);color:var(--text2);border:1px solid var(--border2)}
+.hero-panel{background:linear-gradient(135deg,rgba(124,111,247,.18),rgba(47,207,190,.08) 55%, rgba(240,107,186,.08));border:1px solid var(--accent-border);border-radius:22px;padding:20px 22px;margin-bottom:18px}
+.hero-kicker{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent2);font-weight:700;margin-bottom:8px}
+.hero-title{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.hero-copy{font-size:13px;color:var(--text2);line-height:1.7;margin-top:6px}
+.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.metric-card{background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));border:1px solid var(--border);border-radius:18px;padding:18px}
+.metric-big{font-size:30px;font-weight:800}.metric-meta{font-size:12px;color:var(--text2);margin-top:4px}
+.list-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:16px 18px}
+.mini-row{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--border)}
+.mini-row:last-child{border-bottom:none;padding-bottom:0}.mini-row:first-child{padding-top:0}
+.subtle{font-size:12px;color:var(--text2)}
+.seg{display:flex;gap:6px;background:var(--bg3);padding:4px;border-radius:12px}
+.seg button{background:transparent;color:var(--text2);padding:8px 12px;border-radius:9px;font-size:12px;font-weight:700}
+.seg button.active{background:var(--bg2);color:var(--text)}
+.activity-item{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg3);border-radius:12px;border:1px solid var(--border);margin-bottom:8px}
+.activity-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.progress-bar{height:6px;background:var(--bg4);border-radius:999px;overflow:hidden}.progress-fill{height:100%;border-radius:999px;background:var(--accent)}
+.hw-item{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;background:var(--bg3);border-radius:12px;border:1px solid var(--border);margin-bottom:8px}
+.hw-check{width:22px;height:22px;border-radius:7px;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.hw-check.checked{background:var(--green);border-color:var(--green);color:#fff}
+.subj-pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;margin-bottom:4px}
+.announce-card,.doc-card,.form-card,.news-card,.activity-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:16px 18px}
+.announce-card{margin-bottom:12px}.announce-card.urgent{border-left:3px solid var(--red)} .announce-card.important{border-left:3px solid var(--amber)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--border2);background:var(--bg3);color:var(--text2)}
+.pill.normal{background:var(--accent-bg);color:var(--accent2);border-color:var(--accent-border)}
+.pill.important{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-border)}
+.pill.urgent{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.timetable-grid{display:grid;grid-template-columns:80px repeat(5,1fr);gap:6px}
+.tt-head,.tt-period{font-size:11px;font-weight:700;color:var(--text3);text-align:center;padding:8px}
+.tt-cell{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 8px;min-height:84px}
+.tt-subject{font-size:12px;font-weight:700;margin-bottom:4px}.tt-room{font-size:11px;color:var(--text3)}.tt-time{font-size:10px;color:var(--text2);margin-top:4px;font-family:var(--font-mono)}
+.notif-bell{position:relative;width:38px;height:38px;border-radius:10px;border:1px solid var(--border2);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:17px}
+.notif-count{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center}
+#notif-panel{display:none;position:fixed;right:12px;top:64px;width:340px;max-height:480px;overflow:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:18px;box-shadow:var(--shadow);z-index:99}
+.empty-state{text-align:center;padding:42px 24px;color:var(--text3);border:1px dashed var(--border2);border-radius:18px;background:var(--bg3)}
+.mobile-nav{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--bg2);border-top:1px solid var(--border2);z-index:60;padding-bottom:env(safe-area-inset-bottom)}
+.mobile-nav-inner{display:flex;overflow:auto}.mobile-nav-btn{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:66px;padding:10px 12px 8px;background:none;color:var(--text3);font-size:10px;font-weight:700}
+.mobile-nav-btn.active{color:var(--accent2)}
+.mobile-more-menu{display:none;position:fixed;left:12px;right:12px;bottom:72px;background:var(--bg2);border:1px solid var(--border2);border-radius:18px;padding:14px;z-index:80;box-shadow:var(--shadow)}
+.mobile-more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mobile-more-item{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text2);text-align:center}
+.spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--bg3);border:1px solid var(--border3);border-radius:12px;padding:12px 20px;font-size:13px;z-index:100;display:none;box-shadow:var(--shadow)}
+@media (max-width: 900px){.metric-grid,.grid-4,.grid-3{grid-template-columns:1fr 1fr}}
+@media (max-width: 768px){
+  :root{--sidebar-w:0}
+  .sidebar{transform:translateX(-100%);width:240px}.sidebar.mobile-open{transform:translateX(0)}
+  .main{margin-left:0;padding-bottom:72px}.page{padding:16px}.topbar{padding:0 16px}
+  .grid-2,.metric-grid,.grid-4,.grid-3{grid-template-columns:1fr}.mobile-nav{display:block}
+}
+</style>
+</head>
+<body>
+<div id="loading-screen">
+  <div class="loading-logo">Study<span>Mind</span></div>
+  <div class="loading-bar"><div class="loading-fill"></div></div>
+  <div style="font-size:13px;color:var(--text3)">Loading your school operating system...</div>
+</div>
+
+<div id="auth-screen" style="display:none">
+  <div class="auth-glow"></div>
+  <div class="auth-box" id="screen-welcome">
+    <div class="auth-logo" style="font-size:28px;text-align:center;margin-bottom:4px">Study<span>Mind</span></div>
+    <div class="auth-tagline">SCHOOL OPERATING SYSTEM</div>
+    <div class="auth-title">Welcome</div>
+    <div class="auth-sub">Sign in or create an account to access your personalised school dashboard.</div>
+    <button class="btn btn-primary auth-google" onclick="doGoogleAuth()" style="margin-bottom:10px"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.2-1.9 2.9l3.1 2.4c1.8-1.7 2.9-4.1 2.9-7 0-.7-.1-1.4-.2-2.1H12z"/><path fill="#34A853" d="M12 22c2.6 0 4.8-.9 6.4-2.5l-3.1-2.4c-.9.6-2 .9-3.3.9-2.5 0-4.6-1.7-5.3-4H3.5v2.5A10 10 0 0 0 12 22z"/><path fill="#4A90E2" d="M6.7 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.5H3.5A10 10 0 0 0 2.5 12c0 1.6.4 3.1 1 4.5L6.7 14z"/><path fill="#FBBC05" d="M12 6c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3 14.6 2 12 2A10 10 0 0 0 3.5 7.5l3.2 2.5c.7-2.3 2.8-4 5.3-4z"/></svg>Continue with Google</button>
+    <div class="auth-divider">or</div>
+    <button class="btn btn-primary" onclick="showScreen('login')" style="margin-bottom:10px">Sign In</button>
+    <button class="btn btn-ghost" onclick="showScreen('signup')">Create Account</button>
+  </div>
+  <div class="auth-box" id="screen-login" style="display:none">
+    <div class="auth-logo" style="font-size:22px;margin-bottom:2px;text-align:center">Study<span>Mind</span></div>
+    <div class="auth-tagline">Sign in to your account</div>
+    <div class="auth-error" id="login-error"></div>
+    <button class="btn btn-ghost auth-google" onclick="doGoogleAuth()" style="margin-bottom:12px"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.2-1.9 2.9l3.1 2.4c1.8-1.7 2.9-4.1 2.9-7 0-.7-.1-1.4-.2-2.1H12z"/><path fill="#34A853" d="M12 22c2.6 0 4.8-.9 6.4-2.5l-3.1-2.4c-.9.6-2 .9-3.3.9-2.5 0-4.6-1.7-5.3-4H3.5v2.5A10 10 0 0 0 12 22z"/><path fill="#4A90E2" d="M6.7 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.5H3.5A10 10 0 0 0 2.5 12c0 1.6.4 3.1 1 4.5L6.7 14z"/><path fill="#FBBC05" d="M12 6c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3 14.6 2 12 2A10 10 0 0 0 3.5 7.5l3.2 2.5c.7-2.3 2.8-4 5.3-4z"/></svg>Continue with Google</button>
+    <div class="auth-divider">or sign in with email</div>
+    <div class="form-group"><label class="label">Email address</label><input class="input" id="login-email" type="email"></div>
+    <div class="form-group"><label class="label">Password</label><input class="input" id="login-password" type="password"></div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()" style="margin-bottom:10px">Sign In</button>
+    <button class="btn btn-ghost" onclick="showScreen('welcome')">← Back</button>
+    <div class="auth-switch">Don't have an account? <a onclick="showScreen('signup')">Create one</a></div>
+  </div>
+  <div class="auth-box" id="screen-signup" style="display:none">
+    <div class="auth-logo" style="font-size:22px;margin-bottom:2px;text-align:center">Study<span>Mind</span></div>
+    <div class="auth-tagline">Create your account</div>
+    <div class="auth-error" id="signup-error"></div>
+    <div class="auth-success" id="signup-success"></div>
+    <button class="btn btn-ghost auth-google" onclick="doGoogleAuth()" style="margin-bottom:12px"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.2-1.9 2.9l3.1 2.4c1.8-1.7 2.9-4.1 2.9-7 0-.7-.1-1.4-.2-2.1H12z"/><path fill="#34A853" d="M12 22c2.6 0 4.8-.9 6.4-2.5l-3.1-2.4c-.9.6-2 .9-3.3.9-2.5 0-4.6-1.7-5.3-4H3.5v2.5A10 10 0 0 0 12 22z"/><path fill="#4A90E2" d="M6.7 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.5H3.5A10 10 0 0 0 2.5 12c0 1.6.4 3.1 1 4.5L6.7 14z"/><path fill="#FBBC05" d="M12 6c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 3 14.6 2 12 2A10 10 0 0 0 3.5 7.5l3.2 2.5c.7-2.3 2.8-4 5.3-4z"/></svg>Create with Google</button>
+    <div class="auth-divider">or create with email</div>
+    <div id="signup-confirm-actions" style="display:none;margin-bottom:12px">
+      <button class="btn btn-ghost" type="button" onclick="resendConfirmation()" id="resend-confirm-btn">Resend confirmation email</button>
+    </div>
+    <div class="form-group"><label class="label">I am a...</label>
+      <div class="role-grid">
+        <div class="role-chip selected" onclick="selectRole('student',this)">🎒 Student</div>
+        <div class="role-chip" onclick="selectRole('teacher',this)">👩‍🏫 Teacher</div>
+        <div class="role-chip" onclick="selectRole('parent',this)">👨‍👩‍👧 Parent</div>
+        <div class="role-chip" onclick="selectRole('admin',this)">🏫 Admin</div>
+      </div>
+    </div>
+    <div class="form-group"><label class="label">Full Name</label><input class="input" id="signup-name"></div>
+    <div class="form-group"><label class="label">Email address</label><input class="input" id="signup-email" type="email"></div>
+    <div class="form-group"><label class="label">Password</label><input class="input" id="signup-password" type="password"></div>
+    <div class="form-group"><label class="label">School Name</label><input class="input" id="signup-school" value="Greenwood High School"></div>
+    <div class="form-group" id="grade-wrap"><label class="label">Grade</label><select class="input" id="signup-grade"><option value="">Select grade...</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option></select></div>
+    <div class="form-group" id="subject-wrap" style="display:none"><label class="label">Subject(s) you teach</label><input class="input" id="signup-subject"></div>
+    <button class="btn btn-primary" id="signup-btn" onclick="doSignup()">Create Account</button>
+    <div class="auth-switch">Already have an account? <a onclick="showScreen('login')">Sign in</a></div>
+  </div>
+</div>
+
+<div id="app">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-wordmark">Study<span class="logo-dot">Mind</span></div>
+      <div class="logo-school" id="sidebar-school"></div>
+      <div class="role-pill student" id="sidebar-role-pill"></div>
+    </div>
+    <div class="sidebar-nav" id="sidebar-nav"></div>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="sidebar-avatar"></div>
+        <div><div class="user-name" id="sidebar-user-name"></div><div class="user-role-label" id="sidebar-user-role"></div></div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px"><button id="mobile-menu-btn" onclick="toggleMobileSidebar()" style="display:none;background:none;color:var(--text2);font-size:22px">☰</button><div class="topbar-title" id="topbar-title">Dashboard</div></div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost" style="width:auto;padding:8px 12px" onclick="quickSwitchOverlay()">Switch Role</button>
+        <div class="notif-bell" onclick="toggleNotifPanel()">🔔<div class="notif-count" id="notif-count"></div></div>
+      </div>
+    </div>
+    <div id="notif-panel">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700">Notifications</div><button class="btn btn-ghost" style="width:auto;padding:6px 10px" onclick="markAllRead()">Mark all read</button></div>
+      <div id="notif-list"></div>
+    </div>
+
+    <div id="page-home" class="page page-fade"></div>
+    <div id="page-announcements" class="page page-fade" style="display:none"></div>
+    <div id="page-homework" class="page page-fade" style="display:none"></div>
+    <div id="page-exams" class="page page-fade" style="display:none"></div>
+    <div id="page-timetable" class="page page-fade" style="display:none"></div>
+    <div id="page-activities" class="page page-fade" style="display:none"></div>
+    <div id="page-news" class="page page-fade" style="display:none"></div>
+    <div id="page-attendance" class="page page-fade" style="display:none"></div>
+    <div id="page-documents" class="page page-fade" style="display:none"></div>
+    <div id="page-forms" class="page page-fade" style="display:none"></div>
+    <div id="page-teacherhub" class="page page-fade" style="display:none"></div>
+    <div id="page-parenthub" class="page page-fade" style="display:none"></div>
+    <div id="page-insights" class="page page-fade" style="display:none"></div>
+    <div id="page-settings" class="page page-fade" style="display:none"></div>
+  </div>
+</div>
+
+<nav class="mobile-nav" id="mobile-nav" style="display:none"><div class="mobile-nav-inner" id="mobile-nav-inner"></div></nav>
+<div class="mobile-more-menu" id="mobile-more-menu"></div>
+<div class="toast" id="toast"></div>
+
+<div id="role-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.66);backdrop-filter:blur(4px);z-index:120;align-items:center;justify-content:center;padding:20px">
+  <div class="card" style="max-width:780px;width:100%">
+    <div class="section-header"><div><div class="section-title">Switch demo role</div><div class="section-sub">Useful for pitching the whole school OS, not just one slice of it.</div></div><button class="btn btn-ghost" style="width:auto;padding:8px 12px" onclick="closeRoleModal()">Close</button></div>
+    <div class="grid-4">
+      <div class="card-sm" style="background:var(--bg3);cursor:pointer" onclick="quickSwitchRole('student')">🎓<div style="font-weight:700;margin-top:8px">Student</div><div class="subtle" style="margin-top:4px">Homework, exams, timetable, study feed</div></div>
+      <div class="card-sm" style="background:var(--bg3);cursor:pointer" onclick="quickSwitchRole('teacher')">🧑‍🏫<div style="font-weight:700;margin-top:8px">Teacher</div><div class="subtle" style="margin-top:4px">Registers, classes, notices, workload</div></div>
+      <div class="card-sm" style="background:var(--bg3);cursor:pointer" onclick="quickSwitchRole('parent')">👨‍👩‍👧<div style="font-weight:700;margin-top:8px">Parent</div><div class="subtle" style="margin-top:4px">Child view, forms, notices, attendance</div></div>
+      <div class="card-sm" style="background:var(--bg3);cursor:pointer" onclick="quickSwitchRole('admin')">🏫<div style="font-weight:700;margin-top:8px">Admin</div><div class="subtle" style="margin-top:4px">Insights, comms, school-wide operations</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL='https://rlhjzwzyzioeotqseayp.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJsaGp6d3p5emlvZW90cXNlYXlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MDI2NzgsImV4cCI6MjA4OTA3ODY3OH0.c_9ZWFhP7VFOoefUXn-fQ372NAJ5UoKPn5O5QDqZtt4';
+const sb = supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let currentUser=null,currentProfile=null,currentPage='home',selectedSignupRole='student';
+let notifPanelOpen=false,hwFilter='pending',actFilter='all',announcementFilter='all';
+
+const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k)) ?? d}catch{return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+
+const demoProfiles = {
+  student:{label:'Student',icon:'🎓',name:'Alex Mokoena',grade:'Grade 10',classCode:'10A',activityGroups:['Hockey','Debating']},
+  teacher:{label:'Teacher',icon:'🧑‍🏫',name:'Mrs Naidoo',grade:'Grade 10',classCode:'10A',subjects:['Mathematics','Life Sciences']},
+  parent:{label:'Parent',icon:'👨‍👩‍👧',name:'Nomsa Mokoena',grade:'Grade 10',classCode:'10A',childName:'Alex Mokoena',activityGroups:['Hockey','Debating']},
+  admin:{label:'Admin',icon:'🏫',name:'Mrs Khumalo',grade:'All',classCode:'All'}
+};
+
+const navMap = {
+  student:[
+    ['Main',[['home','🏠','Dashboard'],['announcements','📢','Announcements'],['attendance','📋','My Attendance']]],
+    ['School Life',[['timetable','🗓️','Timetable'],['homework','📝','Homework'],['exams','📋','Exam Calendar'],['activities','🏆','Activities'],['news','📰','School News'],['documents','🗂️','Documents'],['forms','🖊️','Forms']]],
+    ['Tools',[['settings','⚙️','Settings']]]
+  ],
+  teacher:[
+    ['Main',[['home','🏠','Dashboard'],['announcements','📢','Announcements'],['attendance','📋','Attendance']]],
+    ['Teaching',[['timetable','🗓️','My Schedule'],['homework','📝','Homework'],['exams','📋','Assessments'],['teacherhub','🧑‍🏫','Teacher Hub'],['documents','🗂️','Documents']]],
+    ['School',[['activities','🏆','Activities'],['news','📰','School News'],['insights','📈','Insights'],['settings','⚙️','Settings']]]
+  ],
+  parent:[
+    ['Main',[['home','🏠','Dashboard'],['announcements','📢','School Notices'],['attendance','📋','Attendance']]],
+    ['My Child',[['timetable','🗓️','Timetable'],['homework','📝','Homework'],['exams','📋','Upcoming Exams'],['documents','🗂️','Documents'],['forms','🖊️','Forms'],['parenthub','👨‍👩‍👧','Parent Portal']]],
+    ['School',[['activities','🏆','Activities'],['news','📰','School News'],['settings','⚙️','Settings']]]
+  ],
+  admin:[
+    ['Main',[['home','🏠','Dashboard'],['announcements','📢','Communications'],['attendance','📋','Attendance'],['insights','📈','Insights']]],
+    ['Manage',[['timetable','🗓️','Timetable'],['activities','🏆','Activities'],['news','📰','News Feed'],['documents','🗂️','Documents'],['forms','🖊️','Forms'],['teacherhub','🧑‍🏫','Teacher Hub'],['parenthub','👨‍👩‍👧','Parent Portal']]],
+    ['Settings',[['settings','⚙️','Settings']]]
+  ]
+};
+
+const subjPillMap={
+  'Mathematics':['rgba(124,111,247,.14)','#a89eff'],'English':['rgba(240,107,186,.14)','#f06bba'],
+  'Life Sciences':['rgba(63,216,122,.14)','#3fd87a'],'History':['rgba(245,184,65,.14)','#f5b841'],
+  'Business Studies':['rgba(167,139,250,.14)','#a78bfa'],default:['rgba(136,136,164,.14)','#8888a4']
+};
+
+let hwItems=LS.get('sm_hw',[
+  {id:1,subject:'Mathematics',task:'Complete Exercise 4.3 and show full working.',due:'2026-03-16',done:false},
+  {id:2,subject:'English',task:'Prepare oral outline and final introduction paragraph.',due:'2026-03-18',done:false},
+  {id:3,subject:'Life Sciences',task:'Label the cell diagram and revise transport across membranes.',due:'2026-03-20',done:true}
+]);
+let examItems=LS.get('sm_exams',[
+  {id:1,subject:'Mathematics',topic:'Term 1 content excluding simultaneous equations and trigonometry',date:'2026-03-16',type:'test'},
+  {id:2,subject:'Business Studies',topic:'Entrepreneurship and forms of ownership',date:'2026-03-17',type:'test'},
+  {id:3,subject:'English',topic:'Comprehension and language structures',date:'2026-03-18',type:'test'}
+]);
+let activities=LS.get('sm_activities',[
+  {id:1,name:'Hockey',category:'sport',teacher:'Coach Williams',location:'Astro Turf',times:'Tue & Thu 14:30–16:00',spaces:8,desc:'Junior and senior teams.'},
+  {id:2,name:'Debating',category:'culture',teacher:'Mrs Daniels',location:'Library',times:'Wed 15:00–16:30',spaces:12,desc:'Inter-school debating prep.'},
+  {id:3,name:'Choir',category:'culture',teacher:'Mr Mkhize',location:'Hall B',times:'Mon & Thu 15:00–16:00',spaces:15,desc:'Performances and competitions.'},
+  {id:4,name:'Rugby',category:'sport',teacher:'Coach Jacobs',location:'Main Field',times:'Mon & Wed 14:30–16:30',spaces:6,desc:'Fixtures and conditioning.'}
+]);
+let newsItems=LS.get('sm_news',[
+  {id:1,title:'Hockey bus departs at 07:15 sharp on Saturday',category:'sports',body:'All players must be at the sports office by 07:00 in full tracksuit.',meta:'Posted today · Sports Office'},
+  {id:2,title:'Parent-teacher evening RSVP now open',category:'general',body:'Families can now select their preferred slots via Forms.',meta:'Posted yesterday · Admin'},
+  {id:3,title:'Grade 10 revision session moved to Room 204',category:'academic',body:'Today’s maths revision session will take place in Room 204 instead of the library.',meta:'Posted today · Mathematics Dept'}
+]);
+let announcementsData=LS.get('sm_announcements',[
+  {id:101,title:'Grade 10 Mathematics revision session moved to 15:15',body:'Today’s revision session will take place in Room 204 instead of the library due to a venue clash.',category:'academic',priority:'important',pinned:true,requiresAck:false,targets:{roles:['student','teacher','parent'],grades:['Grade 10'],classes:['10A']},tags:['Grade 10','Mathematics','Room change']},
+  {id:102,title:'Hockey bus departs at 07:15 sharp on Saturday',body:'All players must be at the sports office by 07:00 in full tracksuit. Fixtures and venue details are in the activity card.',category:'activities',priority:'urgent',pinned:true,requiresAck:true,targets:{roles:['student','parent'],activityGroups:['Hockey']},tags:['Hockey','Bus','Saturday']},
+  {id:103,title:'POPIA and device policy circular available',body:'The updated device, privacy and school data circular is now available in the document centre for all families and staff.',category:'general',priority:'normal',pinned:false,requiresAck:true,targets:{roles:['teacher','parent','admin']},tags:['Policy','POPIA','Circular']},
+  {id:104,title:'Teachers: attendance register closes at 08:30',body:'Please submit first-period attendance by 08:30 so flagged absences can be escalated to admin and parents immediately.',category:'operations',priority:'important',pinned:false,requiresAck:false,targets:{roles:['teacher','admin']},tags:['Attendance','Operations']},
+  {id:105,title:'Debating sign-up window closes Friday',body:'New members for the inter-school debating programme must submit the digital application form by Friday at 17:00.',category:'activities',priority:'normal',pinned:false,requiresAck:false,targets:{roles:['student','parent'],activityGroups:['Debating']},tags:['Debating','Form']},
+  {id:106,title:'Parent-teacher evening RSVP open',body:'Families can now submit their preferred timeslots via the Forms centre. Please respond by Wednesday.',category:'general',priority:'important',pinned:false,requiresAck:false,targets:{roles:['parent','teacher','admin']},tags:['RSVP','Parent Evening']},
+  {id:107,title:'Principal dashboard pilot: communication open rate up 18%',body:'StudyMind demo analytics show stronger announcement reach and fewer missed notices compared with generic broadcast-only comms.',category:'operations',priority:'normal',pinned:false,requiresAck:false,targets:{roles:['admin']},tags:['Pilot','Analytics']}
+]);
+let documentsData=LS.get('sm_documents',[
+  {id:201,title:'2026 Term 1 Exam Timetable',category:'Exam Timetables',audience:['student','parent','teacher','admin'],updated:'2026-03-12',size:'412 KB'},
+  {id:202,title:'School Device and Responsible Use Policy',category:'Policies',audience:['student','parent','teacher','admin'],updated:'2026-03-08',size:'268 KB'},
+  {id:203,title:'Parent-Teacher Evening Circular',category:'Circulars',audience:['parent','teacher','admin'],updated:'2026-03-13',size:'188 KB'},
+  {id:204,title:'Grade 10 Biology Study Pack',category:'Study Resources',audience:['student','teacher','parent'],updated:'2026-03-11',size:'1.2 MB'},
+  {id:205,title:'Hockey Tour Consent Form',category:'Consent Forms',audience:['parent','admin'],updated:'2026-03-13',size:'154 KB'},
+  {id:206,title:'Weekly School Newsletter',category:'Newsletters',audience:['student','parent','teacher','admin'],updated:'2026-03-14',size:'320 KB'}
+]);
+let formsData=LS.get('sm_forms',[
+  {id:301,title:'Hockey Tour Consent',type:'Permission Slip',audience:['parent'],status:'pending',due:'2026-03-18',description:'Consent, medical notes and emergency contact confirmation for the away fixture.'},
+  {id:302,title:'Parent-Teacher Evening RSVP',type:'Event RSVP',audience:['parent'],status:'pending',due:'2026-03-17',description:'Select your preferred meeting timeslots with subject teachers.'},
+  {id:303,title:'Debating Club Application',type:'Club Application',audience:['student'],status:'pending',due:'2026-03-21',description:'Complete a short motivation and indicate previous speaking experience.'},
+  {id:304,title:'Updated POPIA acknowledgement',type:'Acknowledgement',audience:['parent','teacher'],status:'submitted',due:'2026-03-10',description:'Digital acknowledgement of the revised privacy and device circular.'},
+  {id:305,title:'Science Expo Volunteer Sign-up',type:'Volunteer Form',audience:['teacher','parent'],status:'approved',due:'2026-03-20',description:'Volunteer support for registration, judging logistics and venue setup.'}
+]);
+let attendanceData=LS.get('sm_attendance',{
+  studentSummary:{presentPct:96,lateCount:2,absentCount:1,flagged:false},
+  weekly:[{day:'Mon',rate:98,late:2},{day:'Tue',rate:95,late:4},{day:'Wed',rate:97,late:1},{day:'Thu',rate:94,late:5},{day:'Fri',rate:96,late:2}],
+  flaggedStudents:[{name:'Lebo Dlamini',grade:'Grade 9',pct:82,reason:'Repeated late arrival'},{name:'Aiden Jacobs',grade:'Grade 10',pct:79,reason:'3 unexplained absences'},{name:'Naledi Molefe',grade:'Grade 11',pct:84,reason:'Frequent afternoon sign-out'}],
+  teacherRegister:[{name:'Alex Mokoena',status:'Present'},{name:'Mia Naicker',status:'Present'},{name:'Keegan Smith',status:'Late'},{name:'Amahle Mthembu',status:'Absent'}]
+});
+let marksData=LS.get('sm_marks',[
+  {subject:'Mathematics',value:81},{subject:'English',value:74},{subject:'Life Sciences',value:88},{subject:'History',value:69},{subject:'Business Studies',value:84}
+]);
+let timetableData=LS.get('sm_timetable',{
+  Mon:{1:{subject:'Mathematics',room:'204',time:'08:00 - 08:45'},2:{subject:'English',room:'106',time:'08:50 - 09:35'},3:{subject:'Life Sciences',room:'Lab 2',time:'09:50 - 10:35'},4:{subject:'History',room:'114',time:'10:40 - 11:25'}},
+  Tue:{1:{subject:'Business Studies',room:'205',time:'08:00 - 08:45'},2:{subject:'Mathematics',room:'204',time:'08:50 - 09:35'},3:{subject:'English',room:'106',time:'09:50 - 10:35'},4:{subject:'Life Sciences',room:'Lab 2',time:'10:40 - 11:25'}},
+  Wed:{1:{subject:'Mathematics',room:'204',time:'08:00 - 08:45'},2:{subject:'History',room:'114',time:'08:50 - 09:35'},3:{subject:'English',room:'106',time:'09:50 - 10:35'},4:{subject:'Business Studies',room:'205',time:'10:40 - 11:25'}},
+  Thu:{1:{subject:'Life Sciences',room:'Lab 2',time:'08:00 - 08:45'},2:{subject:'Mathematics',room:'204',time:'08:50 - 09:35'},3:{subject:'English',room:'106',time:'09:50 - 10:35'},4:{subject:'History',room:'114',time:'10:40 - 11:25'}},
+  Fri:{1:{subject:'Business Studies',room:'205',time:'08:00 - 08:45'},2:{subject:'Mathematics',room:'204',time:'08:50 - 09:35'},3:{subject:'Life Sciences',room:'Lab 2',time:'09:50 - 10:35'},4:{subject:'English',room:'106',time:'10:40 - 11:25'}}
+});
+let readAnnouncements=LS.get('sm_read_announcements',{}), acknowledgedAnnouncements=LS.get('sm_ack_announcements',{}), submittedForms=LS.get('sm_submitted_forms',{}), settingState=LS.get('sm_settings',{notifications:true,compactMode:false,branding:'StudyMind Academy'});
+let currentRole='student';
+let pendingConfirmationEmail='';
+const AUTH_REDIRECT_URL=(location.protocol==='http:'||location.protocol==='https:') ? (location.origin + location.pathname) : '';
+
+function saveAll(){LS.set('sm_hw',hwItems);LS.set('sm_exams',examItems);LS.set('sm_activities',activities);LS.set('sm_news',newsItems);LS.set('sm_announcements',announcementsData);LS.set('sm_documents',documentsData);LS.set('sm_forms',formsData);LS.set('sm_attendance',attendanceData);LS.set('sm_marks',marksData);LS.set('sm_timetable',timetableData);LS.set('sm_read_announcements',readAnnouncements);LS.set('sm_ack_announcements',acknowledgedAnnouncements);LS.set('sm_submitted_forms',submittedForms);LS.set('sm_settings',settingState)}
+
+function showToast(msg,d=2500){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(window._tt);window._tt=setTimeout(()=>t.style.display='none',d)}
+function showScreen(name){['welcome','login','signup'].forEach(s=>document.getElementById('screen-'+s).style.display=s===name?'block':'none');document.querySelectorAll('.auth-error,.auth-success').forEach(el=>{el.style.display='none';el.textContent=''}); const a=document.getElementById('signup-confirm-actions'); if(a) a.style.display='none';}
+function selectRole(role,el){selectedSignupRole=role;document.querySelectorAll('.role-chip').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');document.getElementById('grade-wrap').style.display=role==='student'?'block':'none';document.getElementById('subject-wrap').style.display=role==='teacher'?'block':'none'}
+function err(id,msg){const el=document.getElementById(id);el.textContent=msg;el.style.display='block'}
+function ok(id,msg){const el=document.getElementById(id);el.textContent=msg;el.style.display='block'}
+
+async function doGoogleAuth(){
+  const activeBtn=document.activeElement;
+  if(activeBtn && activeBtn.tagName==='BUTTON'){
+    activeBtn.disabled=true;
+    activeBtn.dataset.originalText=activeBtn.innerHTML;
+    activeBtn.innerHTML='<span class="spinner"></span> Redirecting to Google...';
+  }
+  const options={queryParams:{access_type:'offline',prompt:'select_account'}};
+  if(AUTH_REDIRECT_URL) options.redirectTo=AUTH_REDIRECT_URL;
+  const {error}=await sb.auth.signInWithOAuth({provider:'google',options});
+  if(error){
+    err('login-error',error.message);
+    err('signup-error',error.message);
+    if(activeBtn){activeBtn.disabled=false; activeBtn.innerHTML=activeBtn.dataset.originalText || 'Continue with Google';}
+  }
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim(),password=document.getElementById('login-password').value;
+  if(!email||!password) return err('login-error','Please enter your email and password.');
+  const btn=document.getElementById('login-btn'); btn.innerHTML='<span class="spinner"></span> Signing in...'; btn.disabled=true;
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){
+    const msg=(error.message||'').toLowerCase();
+    if(msg.includes('email not confirmed') || msg.includes('email not confirmed')){
+      pendingConfirmationEmail=email;
+      err('login-error','Your email is not confirmed yet. Open the verification email, or go back to sign up and tap “Resend confirmation email”.');
+    } else {
+      err('login-error',error.message==='Invalid login credentials'?'Incorrect email or password.':error.message);
+    }
+    btn.innerHTML='Sign In'; btn.disabled=false; return;
+  }
+  currentUser=data.user; await loadProfile(); launchApp(); btn.innerHTML='Sign In'; btn.disabled=false;
+}
+async function doSignup(){
+  const name=document.getElementById('signup-name').value.trim(), email=document.getElementById('signup-email').value.trim(), password=document.getElementById('signup-password').value;
+  const school=document.getElementById('signup-school').value.trim() || 'Greenwood High School', grade=document.getElementById('signup-grade').value, subject=document.getElementById('signup-subject').value.trim();
+  if(!name) return err('signup-error','Please enter your full name.'); if(!email) return err('signup-error','Please enter your email address.'); if(password.length<6) return err('signup-error','Password must be at least 6 characters.');
+  const avatarMap={student:'🎒',teacher:'👩‍🏫',parent:'👨‍👩‍👧',admin:'🏫'};
+  const btn=document.getElementById('signup-btn'); btn.innerHTML='<span class="spinner"></span> Creating account...'; btn.disabled=true;
+  const signUpOptions={data:{full_name:name,role:selectedSignupRole,school_name:school,grade,subject,avatar_emoji:avatarMap[selectedSignupRole]}};
+  if(AUTH_REDIRECT_URL) signUpOptions.emailRedirectTo=AUTH_REDIRECT_URL;
+  const {data,error}=await sb.auth.signUp({email,password,options:signUpOptions});
+  if(error){err('signup-error',error.message); btn.innerHTML='Create Account'; btn.disabled=false; return;}
+  if(data.user && !data.session){
+    pendingConfirmationEmail=email;
+    ok('signup-success',AUTH_REDIRECT_URL
+      ? 'Account created. Check your email and confirm the address, then come back here and sign in.'
+      : 'Account created, but this app is being opened as a local file. Host it on a real URL and add that URL to Supabase redirect settings, otherwise the confirmation link has nowhere sensible to return to.');
+    const a=document.getElementById('signup-confirm-actions'); if(a) a.style.display='block';
+    btn.innerHTML='Create Account'; btn.disabled=false; return;
+  }
+  currentUser=data.user; await loadProfile(); launchApp(); btn.innerHTML='Create Account'; btn.disabled=false;
+}
+async function resendConfirmation(){
+  const email=(document.getElementById('signup-email')?.value.trim()) || pendingConfirmationEmail;
+  if(!email) return err('signup-error','Enter the email address you used to sign up first.');
+  const btn=document.getElementById('resend-confirm-btn');
+  if(btn){btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Resending...';}
+  const options={};
+  if(AUTH_REDIRECT_URL) options.emailRedirectTo=AUTH_REDIRECT_URL;
+  const {error}=await sb.auth.resend({type:'signup',email,options});
+  if(error){err('signup-error',error.message);}
+  else {ok('signup-success','Confirmation email resent. Check inbox and spam, then click the link and sign in.');}
+  if(btn){btn.disabled=false; btn.innerHTML='Resend confirmation email';}
+}
+async function doLogout(){await sb.auth.signOut(); currentUser=null; currentProfile=null; document.getElementById('app').classList.remove('visible'); document.getElementById('mobile-nav').style.display='none'; document.getElementById('auth-screen').style.display='flex'; showScreen('welcome')}
+async function loadProfile(){
+  const {data}=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+  if(data) currentProfile=data; else {
+    const m=currentUser.user_metadata||{};
+    currentProfile={id:currentUser.id, full_name:m.full_name||currentUser.email, role:m.role||'student', school_name:m.school_name||'Greenwood High School', grade:m.grade||'Grade 10', subject:m.subject||'', avatar_emoji:m.avatar_emoji||'🎒'};
+  }
+  currentRole=currentProfile.role;
+}
+
+function launchApp(){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('sidebar-school').textContent=currentProfile.school_name || settingState.branding;
+  document.getElementById('sidebar-user-name').textContent=currentProfile.full_name;
+  document.getElementById('sidebar-user-role').textContent=getRoleSubtitle();
+  document.getElementById('sidebar-avatar').textContent=currentProfile.avatar_emoji||demoProfiles[currentRole].icon;
+  document.getElementById('sidebar-avatar').style.background=getRoleColor(currentRole,true);
+  const pill=document.getElementById('sidebar-role-pill'); pill.textContent=(currentProfile.avatar_emoji||demoProfiles[currentRole].icon)+' '+cap(currentRole); pill.className='role-pill '+currentRole;
+  buildSidebarNav(); buildMobileNav(); buildNotifications(); goTo('home');
+  if(window.innerWidth<=768){document.getElementById('mobile-menu-btn').style.display='block'; document.getElementById('mobile-nav').style.display='block'}
+}
+
+function getRoleSubtitle(){
+  if(currentRole==='student') return (currentProfile.grade||'Grade 10')+' · Student';
+  if(currentRole==='teacher') return (currentProfile.subject||'Teacher')+' · Teacher';
+  if(currentRole==='parent') return 'Parent';
+  return currentProfile.school_name || 'Admin';
+}
+function getRoleColor(role,bg=false){return {student:bg?'var(--accent-bg)':'var(--accent2)',teacher:bg?'var(--teal-bg)':'var(--teal)',parent:bg?'var(--pink-bg)':'var(--pink)',admin:bg?'var(--amber-bg)':'var(--amber)'}[role]||'var(--accent-bg)'}
+function cap(s){return s?s[0].toUpperCase()+s.slice(1):''}
+function todayISO(){return new Date().toISOString().slice(0,10)}
+function daysUntil(str){const d=new Date(str+'T00:00:00'), t=new Date(); t.setHours(0,0,0,0); return Math.round((d-t)/86400000)}
+function fmtDate(str){return new Date(str+'T00:00:00').toLocaleDateString('en-ZA',{weekday:'short',day:'numeric',month:'short'})}
+function dueLabel(str){const d=daysUntil(str); if(d<0)return['Overdue!','badge-red']; if(d===0)return['Due today!','badge-red']; if(d===1)return['Due tomorrow','badge-amber']; if(d<=3)return[`In ${d} days`,'badge-amber']; return [fmtDate(str),'badge-ghost']}
+function subjPill(subject){return subjPillMap[subject]||subjPillMap.default}
+function profileDemo(){return demoProfiles[currentRole] || demoProfiles.student}
+function notifTargetText(t){let parts=[]; if(t.roles) parts.push(t.roles.join(', ')); if(t.grades) parts.push(t.grades.join(', ')); if(t.classes) parts.push(t.classes.join(', ')); if(t.activityGroups) parts.push(t.activityGroups.join(', ')); return parts.join(' · ') || 'All school'}
+
+function buildSidebarNav(){
+  const nav=document.getElementById('sidebar-nav'); nav.innerHTML='';
+  (navMap[currentRole]||navMap.student).forEach(([section,items])=>{
+    nav.innerHTML += `<div class="nav-section-label">${section}</div>`;
+    items.forEach(([id,icon,label])=>{nav.innerHTML += `<div class="nav-item" id="nav-${id}" onclick="goTo('${id}')"><span class="nav-icon">${icon}</span><span>${label}</span></div>`});
+  });
+}
+function buildMobileNav(){
+  const items=(navMap[currentRole]||navMap.student).flatMap(x=>x[1]); const primary=items.slice(0,5), rest=items.slice(5);
+  document.getElementById('mobile-nav-inner').innerHTML=primary.map(([id,icon,label])=>`<button class="mobile-nav-btn" id="mnav-${id}" onclick="goTo('${id}')"><span style="font-size:20px">${icon}</span><span>${label.split(' ')[0]}</span></button>`).join('') + `<button class="mobile-nav-btn" id="mnav-more" onclick="toggleMobileMore()"><span style="font-size:20px">⋯</span><span>More</span></button>`;
+  document.getElementById('mobile-more-menu').innerHTML=`<div style="font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">More</div><div class="mobile-more-grid">${rest.map(([id,icon,label])=>`<div class="mobile-more-item" onclick="goTo('${id}');closeMobileMore()"><span style="font-size:22px">${icon}</span><span>${label.split(' ')[0]}</span></div>`).join('')}</div>`;
+}
+
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  document.getElementById('loading-screen').style.display='none';
+  if(session){currentUser=session.user; await loadProfile(); launchApp();}
+  else {document.getElementById('auth-screen').style.display='flex'; showScreen('welcome')}
+}
+function toggleMobileSidebar(){document.getElementById('sidebar').classList.toggle('mobile-open')}
+function toggleMobileMore(){const el=document.getElementById('mobile-more-menu'); el.style.display=el.style.display==='block'?'none':'block'}
+function closeMobileMore(){document.getElementById('mobile-more-menu').style.display='none'}
+document.addEventListener('click',e=>{
+  const side=document.getElementById('sidebar'), menuBtn=document.getElementById('mobile-menu-btn');
+  if(side.classList.contains('mobile-open') && !side.contains(e.target) && !menuBtn.contains(e.target)) side.classList.remove('mobile-open');
+});
+
+let notifications=[];
+function buildNotifications(){
+  const base = announcementsData.filter(isVisibleAnnouncement).slice(0,4).map(a=>({id:a.id,title:a.title,body:a.body.slice(0,90),unread:!readAnnouncements[a.id],page:'announcements',icon:a.priority==='urgent'?'⚡':'📢',bg:a.priority==='urgent'?'var(--red-bg)':'var(--accent-bg)'}));
+  if(currentRole==='student') base.unshift({id:'hw',title:'Homework due soon',body:`${hwItems.filter(h=>!h.done).length} tasks are still pending.`,unread:true,page:'homework',icon:'📝',bg:'var(--amber-bg)'});
+  if(currentRole==='teacher') base.unshift({id:'reg',title:'Register closes at 08:30',body:'First-period attendance still needs attention.',unread:true,page:'attendance',icon:'📋',bg:'var(--teal-bg)'});
+  notifications=base.slice(0,5);
+  const unread=notifications.filter(n=>n.unread).length, c=document.getElementById('notif-count');
+  if(unread){c.textContent=unread;c.style.display='flex'} else c.style.display='none';
+  document.getElementById('notif-list').innerHTML=notifications.map(n=>`<div onclick="openNotif('${n.id}')" style="display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:${n.unread?'rgba(124,111,247,.03)':'transparent'}"><div style="width:34px;height:34px;border-radius:10px;background:${n.bg};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${n.icon}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${n.title}</div><div style="font-size:12px;color:var(--text2);line-height:1.5">${n.body}</div></div>${n.unread?'<div style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:4px"></div>':''}</div>`).join('');
+}
+function toggleNotifPanel(){notifPanelOpen=!notifPanelOpen; document.getElementById('notif-panel').style.display=notifPanelOpen?'block':'none'}
+function openNotif(id){const n=notifications.find(x=>String(x.id)===String(id)); if(n){n.unread=false; if(typeof n.id==='number') readAnnouncements[n.id]=true; saveAll(); buildNotifications(); goTo(n.page)} toggleNotifPanel()}
+function markAllRead(){notifications.forEach(n=>{n.unread=false; if(typeof n.id==='number') readAnnouncements[n.id]=true}); saveAll(); buildNotifications(); showToast('All read')}
+function isVisibleAnnouncement(a){
+  const prof=profileDemo();
+  const roles=a.targets?.roles||[]; const grades=a.targets?.grades||[]; const classes=a.targets?.classes||[]; const groups=a.targets?.activityGroups||[];
+  const roleOk=!roles.length || roles.includes(currentRole);
+  const gradeOk=!grades.length || grades.includes(prof.grade);
+  const classOk=!classes.length || classes.includes(prof.classCode);
+  const groupOk=!groups.length || (prof.activityGroups||[]).some(g=>groups.includes(g));
+  return roleOk && gradeOk && classOk && groupOk;
+}
+
+function quickSwitchOverlay(){document.getElementById('role-modal').style.display='flex'}
+function closeRoleModal(){document.getElementById('role-modal').style.display='none'}
+function quickSwitchRole(role){
+  currentRole=role;
+  if(currentProfile){
+    currentProfile.role=role;
+    currentProfile.avatar_emoji={student:'🎒',teacher:'👩‍🏫',parent:'👨‍👩‍👧',admin:'🏫'}[role];
+    currentProfile.full_name=demoProfiles[role].name;
+    currentProfile.grade=demoProfiles[role].grade||'';
+    currentProfile.subject=(demoProfiles[role].subjects||[]).join(', ');
+  }
+  closeRoleModal();
+  launchApp();
+}
+
+function goTo(page){
+  document.querySelectorAll('[id^="page-"]').forEach(p=>p.style.display='none');
+  const t=document.getElementById('page-'+page); if(t){t.style.display='block'; t.classList.remove('page-fade'); void t.offsetWidth; t.classList.add('page-fade')}
+  currentPage=page;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); const nav=document.getElementById('nav-'+page); if(nav) nav.classList.add('active');
+  document.querySelectorAll('.mobile-nav-btn').forEach(n=>n.classList.remove('active')); const mnav=document.getElementById('mnav-'+page); if(mnav) mnav.classList.add('active');
+  const items=(navMap[currentRole]||navMap.student).flatMap(x=>x[1]); const found=items.find(i=>i[0]===page); document.getElementById('topbar-title').textContent=found?`${found[1]} ${found[2]}`:'Dashboard'; if(page==='home') document.getElementById('topbar-title').textContent='Dashboard';
+  closeMobileMore(); document.getElementById('notif-panel').style.display='none'; notifPanelOpen=false;
+  ({
+    home:renderDashboard, announcements:renderAnnouncements, homework:renderHomework, exams:renderExams, timetable:renderTimetable,
+    activities:renderActivities, news:renderNews, attendance:renderAttendance, documents:renderDocuments, forms:renderForms,
+    teacherhub:renderTeacherHub, parenthub:renderParentHub, insights:renderInsights, settings:renderSettings
+  }[page]||renderDashboard)();
+}
+
+function renderDashboard(){
+  const el=document.getElementById('page-home');
+  const first=(currentProfile?.full_name||demoProfiles[currentRole].name).split(' ')[0];
+  const nextExam=examItems.slice().sort((a,b)=>a.date.localeCompare(b.date))[0];
+  const weak=marksData.slice().sort((a,b)=>a.value-b.value)[0];
+  let html=`<div style="margin-bottom:20px"><div style="font-family:var(--font-serif);font-size:28px;margin-bottom:4px">Good ${new Date().getHours()<12?'morning':new Date().getHours()<17?'afternoon':'evening'}, ${first} 👋</div><div style="font-size:13px;color:var(--text2)">${currentProfile?.school_name||settingState.branding} · ${cap(currentRole)}</div></div>`;
+  html+=`<div class="hero-panel"><div class="hero-kicker">${cap(currentRole)} dashboard</div><div class="hero-title">${settingState.branding} is running like an actual school OS.</div><div class="hero-copy">One login, role-aware communication, homework tracking, exam planning, documents, forms and school ops. Far less chaos, and frankly, about time.</div></div>`;
+  if(currentRole==='student'){
+    html += `<div class="metric-grid" style="margin-bottom:18px">
+      <div class="metric-card"><div class="subtle">Homework due</div><div class="metric-big">${hwItems.filter(h=>!h.done).length}</div><div class="metric-meta">Across all subjects</div></div>
+      <div class="metric-card"><div class="subtle">Upcoming test</div><div class="metric-big">${nextExam?nextExam.subject:'None'}</div><div class="metric-meta">${nextExam?fmtDate(nextExam.date):'You’re clear'}</div></div>
+      <div class="metric-card"><div class="subtle">Attendance</div><div class="metric-big">${attendanceData.studentSummary.presentPct}%</div><div class="metric-meta">This term</div></div>
+      <div class="metric-card"><div class="subtle">Weakest subject</div><div class="metric-big">${weak.subject}</div><div class="metric-meta">${weak.value}% average</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Homework due soon</div>${hwItems.filter(h=>!h.done).slice(0,3).map(h=>{const d=dueLabel(h.due), p=subjPill(h.subject); return `<div class="hw-item"><div class="hw-check" onclick="toggleHW(${h.id})">${h.done?'✓':''}</div><div style="flex:1"><span class="subj-pill" style="background:${p[0]};color:${p[1]}">${h.subject}</span><div style="font-size:13px">${h.task}</div></div><span class="badge ${d[1]}">${d[0]}</span></div>`}).join('')}</div>
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Recommended next action</div><div class="subtle" style="line-height:1.8">Your weakest subject right now is <strong style="color:var(--amber)">${weak.subject}</strong>. Do a 20-minute revision block before the ${nextExam?nextExam.subject:'next'} assessment and stop giving panic a head start.</div><div style="display:flex;gap:10px;margin-top:14px"><button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="goTo('homework')">Open homework</button><button class="btn btn-ghost" style="width:auto;padding:8px 12px" onclick="goTo('exams')">Open exams</button></div></div>
+    </div>`;
+  } else if(currentRole==='teacher'){
+    html += `<div class="metric-grid" style="margin-bottom:18px">
+      <div class="metric-card"><div class="subtle">Classes today</div><div class="metric-big">5</div><div class="metric-meta">Including register close</div></div>
+      <div class="metric-card"><div class="subtle">Register completion</div><div class="metric-big">94%</div><div class="metric-meta">School-wide</div></div>
+      <div class="metric-card"><div class="subtle">Pending notices</div><div class="metric-big">${announcementsData.filter(isVisibleAnnouncement).length}</div><div class="metric-meta">Role-relevant</div></div>
+      <div class="metric-card"><div class="subtle">Forms waiting</div><div class="metric-big">${formsData.filter(f=>f.audience.includes('teacher')).length}</div><div class="metric-meta">Teacher actions</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Quick actions</div>
+        <div class="activity-item" onclick="goTo('attendance')"><div class="activity-icon" style="background:var(--teal-bg)">📋</div><div><div style="font-weight:700">Mark attendance</div><div class="subtle">Get first-period admin off your back</div></div></div>
+        <div class="activity-item" onclick="goTo('announcements')"><div class="activity-icon" style="background:var(--accent-bg)">📢</div><div><div style="font-weight:700">Post announcement</div><div class="subtle">Target students, parents or staff properly</div></div></div>
+        <div class="activity-item" onclick="goTo('teacherhub')"><div class="activity-icon" style="background:var(--amber-bg)">🧑‍🏫</div><div><div style="font-weight:700">Open teacher hub</div><div class="subtle">Resources, workload and class admin</div></div></div>
+      </div>
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Today’s pulse</div>${attendanceData.weekly.map(day=>`<div class="mini-row"><div><div style="font-weight:700">${day.day}</div><div class="subtle">${day.late} late arrivals</div></div><div style="min-width:160px"><div class="progress-bar"><div class="progress-fill" style="width:${day.rate}%;background:var(--green)"></div></div><div class="subtle" style="margin-top:6px;text-align:right">${day.rate}% present</div></div></div>`).join('')}</div>
+    </div>`;
+  } else if(currentRole==='parent'){
+    html += `<div class="grid-2">
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Your child at a glance</div>
+        <div class="mini-row"><div><div style="font-weight:700">${profileDemo().childName || 'Learner'}</div><div class="subtle">${profileDemo().grade} · ${profileDemo().classCode}</div></div><div class="pill important">${attendanceData.studentSummary.presentPct}% present</div></div>
+        <div class="mini-row"><div><div style="font-weight:700">Homework pending</div><div class="subtle">Still needs attention</div></div><div class="pill normal">${hwItems.filter(h=>!h.done).length} tasks</div></div>
+        <div class="mini-row"><div><div style="font-weight:700">Next exam</div><div class="subtle">${nextExam?nextExam.subject:'None'}</div></div><div class="pill important">${nextExam?fmtDate(nextExam.date):'Clear'}</div></div>
+      </div>
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Fast parent actions</div>
+        <div class="activity-item" onclick="goTo('forms')"><div class="activity-icon" style="background:var(--pink-bg)">🖊️</div><div><div style="font-weight:700">Submit forms</div><div class="subtle">No more email treasure hunts</div></div></div>
+        <div class="activity-item" onclick="goTo('attendance')"><div class="activity-icon" style="background:var(--amber-bg)">📋</div><div><div style="font-weight:700">Report absence</div><div class="subtle">Handle it without phoning five people</div></div></div>
+        <div class="activity-item" onclick="goTo('announcements')"><div class="activity-icon" style="background:var(--accent-bg)">📢</div><div><div style="font-weight:700">Open notices</div><div class="subtle">See only what matters to your child</div></div></div>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="metric-grid" style="margin-bottom:18px">
+      <div class="metric-card"><div class="subtle">Announcement open rate</div><div class="metric-big">86%</div><div class="metric-meta">Up from broadcast-only chaos</div></div>
+      <div class="metric-card"><div class="subtle">Attendance trend</div><div class="metric-big">95.7%</div><div class="metric-meta">Stable this week</div></div>
+      <div class="metric-card"><div class="subtle">Pending forms</div><div class="metric-big">${formsData.filter(f=>f.status==='pending').length}</div><div class="metric-meta">Need action</div></div>
+      <div class="metric-card"><div class="subtle">Activities live</div><div class="metric-big">${activities.length}</div><div class="metric-meta">Sport and culture</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Leadership snapshot</div><div class="subtle" style="line-height:1.8">StudyMind is not just a noticeboard wearing a blazer. It captures acknowledgement, links communication to action and gives leadership a live read on whether the school is actually functioning.</div></div>
+      <div class="list-card"><div class="section-title" style="margin-bottom:12px">Quick routes</div>
+        <div class="activity-item" onclick="goTo('insights')"><div class="activity-icon" style="background:var(--teal-bg)">📈</div><div><div style="font-weight:700">Open insights</div><div class="subtle">View engagement and attendance trends</div></div></div>
+        <div class="activity-item" onclick="goTo('announcements')"><div class="activity-icon" style="background:var(--accent-bg)">📢</div><div><div style="font-weight:700">Open communications</div><div class="subtle">Targeted messages by role, grade and group</div></div></div>
+        <div class="activity-item" onclick="goTo('documents')"><div class="activity-icon" style="background:var(--amber-bg)">🗂️</div><div><div style="font-weight:700">Open documents</div><div class="subtle">Policies, circulars and exam schedules</div></div></div>
+      </div>
+    </div>`;
+  }
+  el.innerHTML=html;
+}
+function renderAnnouncements(){
+  const list=announcementsData.filter(isVisibleAnnouncement).filter(a=>announcementFilter==='all'||a.priority===announcementFilter||a.category===announcementFilter).sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
+  document.getElementById('page-announcements').innerHTML=`<div class="hero-panel"><div class="hero-kicker">Targeted school communication</div><div class="hero-title">Right message. Right people. Right now.</div><div class="hero-copy">Broadcasting every message to everyone is lazy admin with a logo on it. StudyMind lets the school target by role, grade, class and activity group.</div></div>
+  <div class="section-header"><div class="seg"><button class="${announcementFilter==='all'?'active':''}" onclick="setAnnouncementFilter('all')">All</button><button class="${announcementFilter==='urgent'?'active':''}" onclick="setAnnouncementFilter('urgent')">Urgent</button><button class="${announcementFilter==='academic'?'active':''}" onclick="setAnnouncementFilter('academic')">Academic</button><button class="${announcementFilter==='activities'?'active':''}" onclick="setAnnouncementFilter('activities')">Activities</button></div><div class="subtle">${profileDemo().label} feed · ${profileDemo().grade||'All grades'}</div></div>
+  ${list.map(a=>`<div class="announce-card ${a.priority}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px"><div><div style="font-size:15px;font-weight:700">${a.title}</div><div class="subtle" style="margin-top:4px">${notifTargetText(a.targets)}</div></div><span class="pill ${a.priority}">${a.priority.toUpperCase()}</span></div><div style="font-size:13px;color:var(--text2);line-height:1.7">${a.body}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${(a.tags||[]).map(t=>`<span class="badge badge-ghost">${t}</span>`).join('')}</div><div style="display:flex;gap:10px;margin-top:12px">${!readAnnouncements[a.id]?`<button class="btn btn-ghost" style="width:auto;padding:8px 12px" onclick="markAnnouncementRead(${a.id})">Mark read</button>`:''}${a.requiresAck && !acknowledgedAnnouncements[a.id]?`<button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="ackAnnouncement(${a.id})">Acknowledge</button>`:''}</div></div>`).join('') || '<div class="empty-state">No announcements match this filter.</div>'}`;
+}
+function setAnnouncementFilter(v){announcementFilter=v; renderAnnouncements()}
+function markAnnouncementRead(id){readAnnouncements[id]=true; saveAll(); buildNotifications(); renderAnnouncements()}
+function ackAnnouncement(id){readAnnouncements[id]=true; acknowledgedAnnouncements[id]=true; saveAll(); buildNotifications(); renderAnnouncements(); showToast('Acknowledgement captured.')}
+function toggleHW(id){const item=hwItems.find(x=>x.id===id); if(item){item.done=!item.done; saveAll(); renderHomework(); buildNotifications();}}
+function renderHomework(){
+  const list=hwItems.filter(h=>hwFilter==='all'?true:hwFilter==='done'?h.done:!h.done).sort((a,b)=>a.due.localeCompare(b.due));
+  document.getElementById('page-homework').innerHTML=`<div class="section-header"><div><div class="section-title">📝 Homework tracker</div><div class="section-sub">Keep tasks visible before they become drama.</div></div><button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="addHW()">＋ Add task</button></div>
+  <div class="seg" style="margin-bottom:14px"><button class="${hwFilter==='pending'?'active':''}" onclick="setHWFilter('pending')">Pending</button><button class="${hwFilter==='done'?'active':''}" onclick="setHWFilter('done')">Completed</button><button class="${hwFilter==='all'?'active':''}" onclick="setHWFilter('all')">All</button></div>
+  ${list.map(h=>{const d=dueLabel(h.due), p=subjPill(h.subject); return `<div class="hw-item" style="${h.done?'opacity:.55':''}"><div class="hw-check ${h.done?'checked':''}" onclick="toggleHW(${h.id})">${h.done?'✓':''}</div><div style="flex:1"><span class="subj-pill" style="background:${p[0]};color:${p[1]}">${h.subject}</span><div style="font-size:13.5px;font-weight:600">${h.task}</div></div><span class="badge ${d[1]}">${d[0]}</span></div>`}).join('') || '<div class="empty-state">Nothing here. A suspiciously calm moment.</div>'}`;
+}
+function setHWFilter(v){hwFilter=v; renderHomework()}
+function addHW(){
+  const subject=prompt('Subject?'); if(!subject) return;
+  const task=prompt('Task description?'); if(!task) return;
+  const due=prompt('Due date (YYYY-MM-DD)?', todayISO()); if(!due) return;
+  hwItems.unshift({id:Date.now(),subject,task,due,done:false}); saveAll(); renderHomework(); showToast('Homework task added.'); buildNotifications();
+}
+function renderExams(){
+  const sorted=examItems.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('page-exams').innerHTML=`<div class="section-header"><div><div class="section-title">📋 Exam calendar</div><div class="section-sub">See what’s coming before the panic committee meets.</div></div><button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="addExam()">＋ Add exam</button></div>
+  ${sorted.map(x=>`<div class="announce-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-size:15px;font-weight:700">${x.subject}</div><div class="subtle" style="margin-top:4px">${x.topic}</div></div><div style="text-align:right"><div class="badge badge-amber">${x.type.toUpperCase()}</div><div class="subtle" style="margin-top:6px">${fmtDate(x.date)}</div></div></div></div>`).join('')}`;
+}
+function addExam(){
+  const subject=prompt('Subject?'); if(!subject) return;
+  const topic=prompt('Topic / description?')||'';
+  const date=prompt('Date (YYYY-MM-DD)?', todayISO()); if(!date) return;
+  examItems.push({id:Date.now(),subject,topic,date,type:'test'}); saveAll(); renderExams(); showToast('Assessment added.');
+}
+function renderTimetable(){
+  const days=['Mon','Tue','Wed','Thu','Fri'], periods=[1,2,3,4];
+  let html=`<div class="section-header"><div><div class="section-title">🗓️ Timetable</div><div class="section-sub">Simple, clear, and not trying to be clever for no reason.</div></div></div><div class="timetable-grid">`;
+  html += `<div></div>${days.map(d=>`<div class="tt-head">${d}</div>`).join('')}`;
+  periods.forEach(p=>{
+    html += `<div class="tt-period">P${p}</div>` + days.map(d=>{
+      const c=(timetableData[d]||{})[p];
+      return `<div class="tt-cell">${c?`<div class="tt-subject">${c.subject}</div><div class="tt-room">Room ${c.room}</div><div class="tt-time">${c.time}</div>`:''}</div>`
+    }).join('');
+  });
+  html += `</div>`;
+  document.getElementById('page-timetable').innerHTML=html;
+}
+function renderActivities(){
+  const list=activities.filter(a=>actFilter==='all'||a.category===actFilter);
+  document.getElementById('page-activities').innerHTML=`<div class="section-header"><div><div class="section-title">🏆 Activities hub</div><div class="section-sub">Sport, culture and the bits that make school feel alive.</div></div><button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="addActivity()">＋ Add activity</button></div>
+  <div class="seg" style="margin-bottom:14px"><button class="${actFilter==='all'?'active':''}" onclick="setActFilter('all')">All</button><button class="${actFilter==='sport'?'active':''}" onclick="setActFilter('sport')">Sports</button><button class="${actFilter==='culture'?'active':''}" onclick="setActFilter('culture')">Culture</button></div>
+  <div class="grid-2">${list.map(a=>`<div class="activity-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-size:15px;font-weight:700">${a.name}</div><div class="subtle" style="margin-top:4px">${a.teacher} · ${a.location}</div></div><span class="badge ${a.category==='sport'?'badge-teal':'badge-purple'}">${a.category.toUpperCase()}</span></div><div class="subtle" style="margin-top:10px;line-height:1.7">${a.desc}</div><div style="display:flex;justify-content:space-between;gap:12px;margin-top:12px"><span class="badge badge-ghost">${a.times}</span><span class="badge badge-green">${a.spaces} spaces</span></div></div>`).join('')}</div>`;
+}
+function setActFilter(v){actFilter=v; renderActivities()}
+function addActivity(){const name=prompt('Activity name?'); if(!name) return; const category=(prompt('Category? sport or culture','sport')||'sport').toLowerCase(); activities.push({id:Date.now(),name,category,teacher:'TBC',location:'TBC',times:'TBC',spaces:10,desc:'New activity added.'}); saveAll(); renderActivities(); showToast('Activity added.')}
+function renderNews(){
+  document.getElementById('page-news').innerHTML=`<div class="section-header"><div><div class="section-title">📰 School news</div><div class="section-sub">Quick updates that should not require a committee meeting to find.</div></div><button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="addNews()">＋ Post</button></div>
+  ${newsItems.map(n=>`<div class="news-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${n.category==='sports'?'var(--teal)':n.category==='academic'?'var(--amber)':'var(--accent2)'}">${n.category}</div><div style="font-size:15px;font-weight:700;margin-top:4px">${n.title}</div></div><span class="badge badge-ghost">${n.meta}</span></div><div style="font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px">${n.body}</div></div>`).join('')}`;
+}
+function addNews(){const title=prompt('Title?'); if(!title) return; const body=prompt('Body?')||''; newsItems.unshift({id:Date.now(),title,category:'general',body,meta:'Posted just now · Admin'}); saveAll(); renderNews(); showToast('Announcement posted.')}
+function renderAttendance(){
+  const el=document.getElementById('page-attendance');
+  if(currentRole==='student'){
+    el.innerHTML=`<div class="grid-2"><div class="metric-card"><div class="subtle">Attendance rate</div><div class="metric-big">${attendanceData.studentSummary.presentPct}%</div><div class="metric-meta">Strong consistency this term</div></div><div class="metric-card"><div class="subtle">Late arrivals</div><div class="metric-big">${attendanceData.studentSummary.lateCount}</div><div class="metric-meta">Still fixable before it becomes a pattern</div></div></div><div class="list-card" style="margin-top:16px"><div class="section-title" style="margin-bottom:12px">This week</div>${attendanceData.weekly.map(day=>`<div class="mini-row"><div><div style="font-weight:700">${day.day}</div><div class="subtle">${day.late} late arrivals school-wide</div></div><div style="min-width:160px"><div class="progress-bar"><div class="progress-fill" style="width:${day.rate}%;background:var(--green)"></div></div><div class="subtle" style="margin-top:6px;text-align:right">${day.rate}% present</div></div></div>`).join('')}</div>`;
+  } else if(currentRole==='parent'){
+    el.innerHTML=`<div class="hero-panel"><div class="hero-kicker">Parent action</div><div class="hero-title">Report an absence without phoning five departments like it’s 2009.</div><div class="hero-copy">Submit absences, track attendance patterns and spot issues early.</div></div><div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Child attendance snapshot</div><div class="mini-row"><div><div style="font-weight:700">${profileDemo().childName||'Learner'}</div><div class="subtle">${profileDemo().grade} · ${profileDemo().classCode}</div></div><div class="pill important">${attendanceData.studentSummary.presentPct}% present</div></div><div class="mini-row"><div><div style="font-weight:700">Late arrivals</div><div class="subtle">Transport delays show up here quickly</div></div><div>${attendanceData.studentSummary.lateCount}</div></div><div class="mini-row"><div><div style="font-weight:700">Absences</div><div class="subtle">This term</div></div><div>${attendanceData.studentSummary.absentCount}</div></div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Quick action</div><div class="subtle" style="line-height:1.8">In the real build, this becomes a short structured form with reason, dates and proof upload. For now, one tap gets the point across.</div><button class="btn btn-primary" style="width:auto;padding:8px 12px;margin-top:14px" onclick="showToast('Absence report submitted in demo mode.')">Report absence</button></div></div>`;
+  } else if(currentRole==='teacher'){
+    el.innerHTML=`<div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Today’s register</div>${attendanceData.teacherRegister.map(x=>`<div class="mini-row"><div style="font-weight:700">${x.name}</div><span class="badge ${x.status==='Present'?'badge-green':x.status==='Late'?'badge-amber':'badge-red'}">${x.status}</span></div>`).join('')}<button class="btn btn-primary" style="width:auto;padding:8px 12px;margin-top:14px" onclick="showToast('Register submitted.')">Submit register</button></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Weekly trend</div>${attendanceData.weekly.map(day=>`<div class="mini-row"><div><div style="font-weight:700">${day.day}</div><div class="subtle">${day.late} late arrivals</div></div><div>${day.rate}%</div></div>`).join('')}</div></div>`;
+  } else {
+    el.innerHTML=`<div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Flagged learners</div>${attendanceData.flaggedStudents.map(x=>`<div class="mini-row"><div><div style="font-weight:700">${x.name}</div><div class="subtle">${x.grade} · ${x.reason}</div></div><span class="pill urgent">${x.pct}%</span></div>`).join('')}</div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Weekly school attendance</div>${attendanceData.weekly.map(day=>`<div class="mini-row"><div style="font-weight:700">${day.day}</div><div style="min-width:160px"><div class="progress-bar"><div class="progress-fill" style="width:${day.rate}%;background:var(--green)"></div></div><div class="subtle" style="margin-top:6px;text-align:right">${day.rate}% present</div></div></div>`).join('')}</div></div>`;
+  }
+}
+function renderDocuments(){
+  const role=currentRole;
+  const q=(document.getElementById('document-search')?.value||'').toLowerCase();
+  const category=document.getElementById('document-category-filter')?.value||'all';
+  const visible=documentsData.filter(d=>d.audience.includes(role) && (category==='all'||d.category===category) && (!q || d.title.toLowerCase().includes(q) || d.category.toLowerCase().includes(q)));
+  document.getElementById('page-documents').innerHTML=`<div class="hero-panel"><div class="hero-kicker">Document centre</div><div class="hero-title">Circulars, policies, exam timetables and resources in one place.</div><div class="hero-copy">No more “please resend the PDF” nonsense. Searchable, filterable and role-aware.</div></div><div class="grid-2" style="margin-bottom:16px"><div><label class="label">Search</label><input class="input" id="document-search" oninput="renderDocuments()" placeholder="Search documents..." value="${q}"></div><div><label class="label">Category</label><select class="input" id="document-category-filter" onchange="renderDocuments()"><option value="all">All categories</option><option ${category==='Policies'?'selected':''}>Policies</option><option ${category==='Circulars'?'selected':''}>Circulars</option><option ${category==='Newsletters'?'selected':''}>Newsletters</option><option ${category==='Consent Forms'?'selected':''}>Consent Forms</option><option ${category==='Exam Timetables'?'selected':''}>Exam Timetables</option><option ${category==='Study Resources'?'selected':''}>Study Resources</option></select></div></div><div class="grid-2">${visible.map(d=>`<div class="doc-card"><div style="font-size:15px;font-weight:700">${d.title}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><span class="badge badge-purple">${d.category}</span><span class="badge badge-ghost">${d.updated}</span><span class="badge badge-ghost">${d.size}</span></div><button class="btn btn-ghost" style="width:auto;padding:8px 12px;margin-top:12px" onclick="showToast('Document preview would open here.')">Open</button></div>`).join('') || '<div class="empty-state">No documents match that filter.</div>'}</div>`;
+}
+function renderForms(){
+  const role=currentRole;
+  const visible=formsData.filter(f=>f.audience.includes(role));
+  const pending=visible.filter(f=>f.status==='pending' && !submittedForms[f.id]).length;
+  const submitted=Object.keys(submittedForms).length + visible.filter(f=>f.status!=='pending').length;
+  document.getElementById('page-forms').innerHTML=`<div class="grid-2" style="margin-bottom:18px"><div class="metric-card"><div class="subtle">Pending forms</div><div class="metric-big">${pending}</div><div class="metric-meta">Need attention</div></div><div class="metric-card"><div class="subtle">Submitted</div><div class="metric-big">${submitted}</div><div class="metric-meta">Tracked inside StudyMind</div></div></div><div class="grid-2">${visible.map(f=>`<div class="form-card"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div style="font-size:15px;font-weight:700">${f.title}</div><div class="subtle" style="margin-top:4px">${f.type}</div></div><span class="pill ${submittedForms[f.id]||f.status==='submitted'?'normal':f.status==='approved'?'important':'urgent'}">${submittedForms[f.id]?'submitted':f.status}</span></div><div class="subtle" style="margin-top:10px;line-height:1.7">${f.description}</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><span class="badge badge-ghost">Due ${fmtDate(f.due)}</span>${f.status==='pending'&&!submittedForms[f.id]?`<button class="btn btn-primary" style="width:auto;padding:8px 12px" onclick="submitForm(${f.id})">Submit</button>`:`<button class="btn btn-ghost" style="width:auto;padding:8px 12px" onclick="showToast('Form details would open here.')">View</button>`}</div></div>`).join('')}</div>`;
+}
+function submitForm(id){submittedForms[id]=true; saveAll(); renderForms(); showToast('Form submitted in demo mode.')}
+function renderTeacherHub(){
+  const allow=currentRole==='teacher'||currentRole==='admin';
+  document.getElementById('page-teacherhub').innerHTML=allow?`<div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Teaching load</div><div class="mini-row"><div><div style="font-weight:700">Grade 10A Mathematics</div><div class="subtle">Next class 08:00 tomorrow</div></div><div class="pill normal">32 learners</div></div><div class="mini-row"><div><div style="font-weight:700">Grade 10B Life Sciences</div><div class="subtle">Lab practical on Thursday</div></div><div class="pill important">28 learners</div></div><div class="mini-row"><div><div style="font-weight:700">Homework completion</div><div class="subtle">Latest task response rate</div></div><div>79%</div></div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Resource shortcuts</div><div class="activity-item"><div class="activity-icon" style="background:var(--accent-bg)">📄</div><div><div style="font-weight:700">Upload class resource</div><div class="subtle">Worksheet, memo or revision guide</div></div></div><div class="activity-item"><div class="activity-icon" style="background:var(--teal-bg)">📢</div><div><div style="font-weight:700">Post targeted notice</div><div class="subtle">Class, grade or parent audience</div></div></div><div class="activity-item"><div class="activity-icon" style="background:var(--amber-bg)">📋</div><div><div style="font-weight:700">Open assessment plan</div><div class="subtle">Keep deadlines from mutinying</div></div></div></div></div>`:`<div class="empty-state">Teacher Hub is reserved for teacher and admin roles.</div>`;
+}
+function renderParentHub(){
+  const allow=currentRole==='parent'||currentRole==='admin';
+  document.getElementById('page-parenthub').innerHTML=allow?`<div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Family overview</div><div class="mini-row"><div><div style="font-weight:700">${profileDemo().childName||'Alex Mokoena'}</div><div class="subtle">${profileDemo().grade} · ${profileDemo().classCode}</div></div><div class="pill normal">Connected</div></div><div class="mini-row"><div><div style="font-weight:700">Attendance snapshot</div><div class="subtle">Current term</div></div><div>${attendanceData.studentSummary.presentPct}%</div></div><div class="mini-row"><div><div style="font-weight:700">Forms outstanding</div><div class="subtle">Action still required</div></div><div>${formsData.filter(f=>f.audience.includes('parent') && f.status==='pending' && !submittedForms[f.id]).length}</div></div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Communication hub</div><div class="subtle" style="line-height:1.8">Parents should see what actually matters to their child instead of drowning in random notices. That’s one of the strongest parts of this product pitch.</div><button class="btn btn-primary" style="width:auto;padding:8px 12px;margin-top:14px" onclick="goTo('announcements')">Open personalised feed</button></div></div>`:`<div class="empty-state">Parent Portal is reserved for parent and admin roles.</div>`;
+}
+function renderInsights(){
+  const allow=currentRole==='admin'||currentRole==='teacher';
+  document.getElementById('page-insights').innerHTML=allow?`<div class="hero-panel"><div class="hero-kicker">Principal demo</div><div class="hero-title">The part that makes leadership stop scrolling and start paying attention.</div><div class="hero-copy">Communication reach, homework completion, attendance trends and engagement by grade.</div></div><div class="metric-grid" style="margin-bottom:18px"><div class="metric-card"><div class="subtle">Announcement open rate</div><div class="metric-big">86%</div><div class="metric-meta">Up from generic broadcast estimate</div></div><div class="metric-card"><div class="subtle">Homework completion</div><div class="metric-big">79%</div><div class="metric-meta">Highest in Grade 10</div></div><div class="metric-card"><div class="subtle">Attendance trend</div><div class="metric-big">95.7%</div><div class="metric-meta">Stable over 5 days</div></div><div class="metric-card"><div class="subtle">Activity participation</div><div class="metric-big">63%</div><div class="metric-meta">Sport and culture combined</div></div></div><div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">Operational highlights</div><div class="mini-row"><div><div style="font-weight:700">Read receipts on urgent notices</div><div class="subtle">Leadership can see who actually saw the comms</div></div><div class="pill normal">Live</div></div><div class="mini-row"><div><div style="font-weight:700">Parent action speed</div><div class="subtle">Average form turnaround within 18 hours</div></div><div class="pill important">Fast</div></div><div class="mini-row"><div><div style="font-weight:700">Most engaged segment</div><div class="subtle">Grade 10 activities + revision feed</div></div><div class="pill normal">Top</div></div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">What this means</div><div class="subtle" style="line-height:1.8">StudyMind doesn’t just broadcast information. It captures acknowledgement, links it to action, and gives leadership a live picture of whether the school is actually responding. That’s the difference between a school app and a school operating system.</div></div></div>`:`<div class="empty-state">School-level analytics are reserved for teacher and admin views.</div>`;
+}
+function renderSettings(){
+  document.getElementById('page-settings').innerHTML=`<div class="grid-2"><div class="list-card"><div class="section-title" style="margin-bottom:12px">School branding</div><label class="label">School name</label><input class="input" id="branding-school-name" value="${settingState.branding}"><button class="btn btn-primary" style="width:auto;padding:8px 12px;margin-top:12px" onclick="saveBranding()">Save branding</button></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Demo role switcher</div><div class="subtle" style="margin-bottom:12px">Swap roles instantly for pitches without reloading.</div><div style="display:flex;gap:8px;flex-wrap:wrap">${Object.keys(demoProfiles).map(role=>`<button class="btn ${currentRole===role?'btn-primary':'btn-ghost'}" style="width:auto;padding:8px 12px" onclick="quickSwitchRole('${role}')">${demoProfiles[role].icon} ${demoProfiles[role].label}</button>`).join('')}</div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">Notification preferences</div><div class="mini-row"><div><div style="font-weight:700">Enable school alerts</div><div class="subtle">Homework, timetable and urgent notices</div></div><button class="btn ${settingState.notifications?'btn-primary':'btn-ghost'}" style="width:auto;padding:8px 12px" onclick="toggleSetting('notifications')">${settingState.notifications?'On':'Off'}</button></div><div class="mini-row"><div><div style="font-weight:700">Compact dashboard</div><div class="subtle">Tighter layout for small screens</div></div><button class="btn ${settingState.compactMode?'btn-primary':'btn-ghost'}" style="width:auto;padding:8px 12px" onclick="toggleSetting('compactMode')">${settingState.compactMode?'On':'Off'}</button></div></div><div class="list-card"><div class="section-title" style="margin-bottom:12px">About this build</div><div class="subtle" style="line-height:1.8">This merged version combines real Supabase auth with the fuller school OS modules from the MVP. In other words, the front-end is no longer playing dress-up.</div></div></div>`;
+}
+function toggleSetting(k){settingState[k]=!settingState[k]; saveAll(); renderSettings()}
+function saveBranding(){const v=document.getElementById('branding-school-name').value.trim(); if(!v) return showToast('Please enter a school name.'); settingState.branding=v; saveAll(); renderSettings(); showToast('Branding updated.')}
+boot();
+</script>
+</body>
+</html>
