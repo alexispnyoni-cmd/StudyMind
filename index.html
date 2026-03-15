@@ -459,54 +459,6 @@
 </head>
 
 <body>
-<div class="role-overlay" id="role-overlay">
-  <div class="role-shell">
-    <div class="access-note">StudyMind Demo Mode</div>
-    <div class="hero-title" style="margin-top:8px">Choose who you are logging in as.</div>
-    <div class="hero-copy">This MVP now supports student, teacher, parent and admin flows. Pick a role to preview the right dashboard, announcements, attendance actions and school tools. No fluffy nonsense, just the school operating system demo.</div>
-    <div class="role-grid" id="role-grid">
-      <div class="role-card active" data-role="student" onclick="selectDemoRole('student', this)">
-        <div style="font-size:28px;margin-bottom:10px">🎓</div>
-        <div style="font-size:16px;font-weight:700">Student</div>
-        <div class="subtle" style="margin-top:6px">Study tools, timetable, homework, exams, activities and academic guidance.</div>
-      </div>
-      <div class="role-card" data-role="teacher" onclick="selectDemoRole('teacher', this)">
-        <div style="font-size:28px;margin-bottom:10px">🧑‍🏫</div>
-        <div style="font-size:16px;font-weight:700">Teacher</div>
-        <div class="subtle" style="margin-top:6px">Class planning, announcements, resource uploads, registers and deadlines.</div>
-      </div>
-      <div class="role-card" data-role="parent" onclick="selectDemoRole('parent', this)">
-        <div style="font-size:28px;margin-bottom:10px">👨‍👩‍👧</div>
-        <div style="font-size:16px;font-weight:700">Parent</div>
-        <div class="subtle" style="margin-top:6px">Child overview, attendance, forms, notices and upcoming school events.</div>
-      </div>
-      <div class="role-card" data-role="admin" onclick="selectDemoRole('admin', this)">
-        <div style="font-size:28px;margin-bottom:10px">🏫</div>
-        <div style="font-size:16px;font-weight:700">Admin / Principal</div>
-        <div class="subtle" style="margin-top:6px">School-wide engagement, communication metrics, attendance trends and controls.</div>
-      </div>
-    </div>
-    <div class="grid-2" style="margin-top:18px;gap:14px">
-      <div>
-        <label class="label">Display name</label>
-        <input class="input" id="role-display-name" placeholder="e.g. Wendy / Mrs Naidoo / Parent Demo" />
-      </div>
-      <div>
-        <label class="label">Demo context</label>
-        <select class="input" id="role-context-select">
-          <option value="default">Default school profile</option>
-          <option value="grade10">Grade 10 / Senior phase</option>
-          <option value="sport">Sport-heavy learner profile</option>
-          <option value="academic">Academic focus profile</option>
-        </select>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
-      <button class="btn btn-ghost" onclick="closeRoleOverlay()">Cancel</button>
-      <button class="btn btn-primary" onclick="confirmDemoRole()">Continue to StudyMind</button>
-    </div>
-  </div>
-</div>
 
 <div class="mvp-utility" id="mvp-utility">
   <button class="utility-btn" onclick="toggleNotificationPanel()">🔔<span class="notif-dot" id="notif-count">0</span></button>
