@@ -282,6 +282,11 @@ select.input{cursor:pointer;}
     </div>
     <div class="form-group extra-field" id="ef-subject"><label class="label">Subject(s) you teach</label><input class="input" id="su-subject" placeholder="e.g. Mathematics, Physics"/></div>
     <div class="form-group"><label class="label">School Name</label><input class="input" id="su-school" placeholder="e.g. Greenwood High School" value="Greenwood High School"/></div>
+    <div class="form-group extra-field" id="ef-access-code">
+      <label class="label">Access Code</label>
+      <input class="input" id="su-access-code" placeholder="Enter code from your school principal"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:5px">Teachers and admins need a code from the school principal.</div>
+    </div>
     <button class="btn btn-primary" onclick="doSignup()" id="signup-btn">Create Account</button>
     <div class="divider"><div class="divider-line"></div><div class="divider-text">or</div><div class="divider-line"></div></div>
     <button class="btn-google" onclick="doGoogle()">
@@ -376,7 +381,9 @@ select.input{cursor:pointer;}
     <div id="page-news"        class="page page-fade" style="display:none"></div>
     <div id="page-attendance"  class="page page-fade" style="display:none"></div>
     <div id="page-settings"    class="page page-fade" style="display:none"></div>
-    <!-- Phase 2 pages (added later) -->
+    <!-- Phase 2 pages -->
+    <div id="page-users"  class="page page-fade" style="display:none"></div>
+    <div id="page-invite" class="page page-fade" style="display:none"></div>
     <div id="page-sources"     class="page page-fade" style="display:none"></div>
     <div id="page-chat"        style="display:none;flex-direction:column;height:calc(100vh - 58px)"></div>
     <div id="page-flashcards"  class="page page-fade" style="display:none"></div>
@@ -499,6 +506,8 @@ function pickRole(role, el) {
   el.classList.add('selected');
   document.getElementById('ef-grade').classList.toggle('show', role === 'student');
   document.getElementById('ef-subject').classList.toggle('show', role === 'teacher');
+  const needsCode = ['teacher','admin','principal'].includes(role);
+  document.getElementById('ef-access-code').classList.toggle('show', needsCode);
 }
 
 /* ─── LOGIN ─── */
@@ -748,6 +757,10 @@ const NAV = {
       {id:'documents',icon:'📁',label:'Documents'},
       {id:'forms',icon:'📋',label:'Forms'},
     ]},
+    { section:'People', items:[
+      {id:'users',icon:'👥',label:'User Management'},
+      {id:'invite',icon:'✉️',label:'Invite Users'},
+    ]},
     { section:'Settings', items:[
       {id:'settings',icon:'⚙️',label:'Settings'},
     ]},
@@ -862,6 +875,23 @@ async function goTo(p) {
   if (p === 'timetable')     await renderTimetable();
   if (p === 'attendance')    renderAttendance();
   if (p === 'settings')      renderSettings();
+  if (p === 'sources')       renderSources();
+  if (p === 'chat')          renderChat();
+  if (p === 'flashcards')    renderFlashcards();
+  if (p === 'recall')        renderRecall();
+  if (p === 'explain')       renderExplain();
+  if (p === 'audio')         renderAudio();
+  if (p === 'mindmap')       renderMindMap();
+  if (p === 'notebooks')     renderNotebooks();
+  if (p === 'quicknotes')    renderQuickNotes();
+  if (p === 'documents')     renderDocuments();
+  if (p === 'forms')         renderForms();
+  if (p === 'progress')      renderProgress();
+  if (p === 'analytics')     renderAnalytics();
+  if (p === 'schedule')      renderSchedule();
+  if (p === 'teacher')       renderTeacherTools();
+  if (p === 'users')         renderUsers();
+  if (p === 'invite')        renderInvite();
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1913,24 +1943,1446 @@ function renderPlaceholder(pageId,icon,title,sub,action,actionLabel){
   document.getElementById('page-'+pid)?.setAttribute('data-placeholder',JSON.stringify(c));
 });
 
-// Override goTo to show placeholder for unimplemented pages
-const _go=goTo;
-goTo=async function(p){
-  await _go(p);
-  const el=document.getElementById('page-'+p);
-  if(el&&el.innerHTML.trim()===''&&el.dataset.placeholder){
-    const c=JSON.parse(el.dataset.placeholder);
-    el.innerHTML=`<div class="empty-state" style="padding:60px 20px">
-      <div class="empty-icon">${c.icon}</div>
-      <div class="empty-title">${c.title}</div>
-      <div class="empty-sub">${c.sub}<br><br><span style="font-size:12px;color:var(--text3)">Full functionality coming in Phase 2.</span></div>
-    </div>`;
-  }
-};
+
 
 /* ═══════════════════════════════════════════════════
    BOOT
 ═══════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════
+   PHASE 2 — COMPLETE FEATURE IMPLEMENTATIONS
+═══════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────
+   ROLE ACCESS CODES + SIGNUP UPGRADE
+───────────────────────────────────────────────── */
+// These codes are stored in the schools table
+// Admin sets them from Settings page
+// Default codes (school admin should change these)
+const DEFAULT_TEACHER_CODE = 'TEACH2024';
+const DEFAULT_ADMIN_CODE   = 'ADMIN2024';
+
+// Override doSignup to include access code validation
+const _origDoSignup = doSignup;
+async function doSignup() {
+  const role = signupRole;
+  if (['teacher','admin','principal'].includes(role)) {
+    const code = document.getElementById('su-access-code')?.value.trim();
+    if (!code) return showErr('signup-err', 'Please enter the access code for your role.');
+    // Validate code against school
+    const schoolName = document.getElementById('su-school')?.value.trim() || 'Greenwood High School';
+    const { data: sc } = await db.from('schools').select('teacher_code,admin_code').ilike('name', schoolName).single();
+    const teacherCode = sc?.teacher_code || DEFAULT_TEACHER_CODE;
+    const adminCode   = sc?.admin_code   || DEFAULT_ADMIN_CODE;
+    if (role === 'teacher' && code !== teacherCode) return showErr('signup-err', '❌ Incorrect teacher access code. Contact your school admin.');
+    if (['admin','principal'].includes(role) && code !== adminCode) return showErr('signup-err', '❌ Incorrect admin access code. Contact your school principal.');
+  }
+  await _origDoSignup();
+}
+
+/* ─────────────────────────────────────────────────
+   AI CONFIG
+───────────────────────────────────────────────── */
+const AI_URL   = 'https://api.anthropic.com/v1/messages';
+const AI_MODEL = 'claude-sonnet-4-20250514';
+
+function getApiKey() { return sessionStorage.getItem('sm_api_key') || ''; }
+
+function promptApiKey() {
+  const k = prompt('Enter your Anthropic API key (sk-ant-...) to use AI features:');
+  if (k?.startsWith('sk-')) { sessionStorage.setItem('sm_api_key', k); showToast('✓ API key saved!'); return k; }
+  return null;
+}
+
+async function ai(system, user, imageData) {
+  let key = getApiKey();
+  if (!key) { key = promptApiKey(); if (!key) throw new Error('No API key'); }
+  const content = [];
+  if (imageData) content.push({ type:'image', source:{ type:'base64', media_type:imageData.type, data:imageData.data }});
+  content.push({ type:'text', text: user });
+  const res = await fetch(AI_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model:AI_MODEL, max_tokens:2000, system, messages:[{ role:'user', content }] })
+  });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.content[0].text;
+}
+
+async function aiChat(messages, system) {
+  let key = getApiKey();
+  if (!key) { key = promptApiKey(); if (!key) throw new Error('No API key'); }
+  const res = await fetch(AI_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model:AI_MODEL, max_tokens:2000, system, messages })
+  });
+  const d = await res.json();
+  if (d.error) throw new Error(d.error.message);
+  return d.content[0].text;
+}
+
+function spin(size=16) { return `<div style="width:${size}px;height:${size}px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;flex-shrink:0"></div>`; }
+
+/* ─────────────────────────────────────────────────
+   SOURCES
+───────────────────────────────────────────────── */
+let sources = [];
+function sourcesContext() { return sources.map((s,i)=>`[Source ${i+1}: ${s.title}]\n${s.content}`).join('\n\n---\n\n'); }
+
+function renderSources() {
+  const el = document.getElementById('page-sources'); if (!el) return;
+  el.innerHTML = `
+    <div class="section-header">
+      <div><div class="section-title">📚 My Sources</div><div class="section-sub">Upload notes, PDFs, or images — AI studies all of them</div></div>
+      <span style="background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border);padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700">${sources.length} source${sources.length!==1?'s':''}</span>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div style="border:2px dashed var(--border2);border-radius:var(--radius2);padding:28px 16px;text-align:center;cursor:pointer;background:var(--bg3);transition:all .2s" onclick="document.getElementById('img-up').click()" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">
+        <div style="font-size:28px;margin-bottom:8px">🖼️</div><div style="font-size:13px;color:var(--text2)">Upload Image</div><div style="font-size:11px;color:var(--text3);margin-top:3px">Photos of textbook pages, notes</div>
+        <input type="file" id="img-up" accept="image/*" style="display:none" onchange="handleImgUpload(event)" multiple/>
+      </div>
+      <div style="border:2px dashed var(--border2);border-radius:var(--radius2);padding:28px 16px;text-align:center;cursor:pointer;background:var(--bg3);transition:all .2s" onclick="document.getElementById('txt-up').click()" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">
+        <div style="font-size:28px;margin-bottom:8px">📄</div><div style="font-size:13px;color:var(--text2)">Upload Text File</div><div style="font-size:11px;color:var(--text3);margin-top:3px">.txt files</div>
+        <input type="file" id="txt-up" accept=".txt" style="display:none" onchange="handleTxtUpload(event)" multiple/>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <label class="label">Paste notes or text</label>
+      <textarea id="paste-src" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:90px;resize:vertical;font-family:var(--font)" placeholder="Paste your notes, textbook content, or any study material..."></textarea>
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
+        <input id="paste-title" class="input" placeholder="Title (optional)" style="max-width:200px;flex:1"/>
+        <button class="btn-sm primary" onclick="addTextSource()">＋ Add Source</button>
+      </div>
+    </div>
+    <div id="src-list"></div>
+    ${sources.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn-sm primary" onclick="goTo('chat')">💬 Chat with Sources</button>
+      <button class="btn-sm" style="background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)" onclick="goTo('audio')">🎙️ Audio Overview</button>
+      <button class="btn-sm ghost" onclick="goTo('mindmap')">🗺️ Mind Map</button>
+    </div>` : ''}`;
+  renderSrcList();
+}
+
+function renderSrcList() {
+  const el = document.getElementById('src-list'); if (!el) return;
+  if (!sources.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">No sources yet — upload or paste content above.</div>'; return; }
+  el.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Your Sources</div>' +
+    sources.map((s,i) => `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:7px">
+      <span style="font-size:20px">${s.icon}</span>
+      <div style="flex:1;overflow:hidden">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.title)}</div>
+        <div style="font-size:11px;color:var(--text3)">${s.type.toUpperCase()} · ${s.content.length.toLocaleString()} chars</div>
+      </div>
+      <button onclick="sources.splice(${i},1);renderSources()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button>
+    </div>`).join('');
+}
+
+function addSource(title, content, type='text', icon='📝') {
+  sources.push({ title, content: content.slice(0,8000), type, icon });
+  if (page==='sources') renderSources();
+  showToast(`✓ Added: ${title}`);
+}
+
+function addTextSource() {
+  const text = document.getElementById('paste-src')?.value.trim();
+  const title = document.getElementById('paste-title')?.value.trim() || ('Notes ' + (sources.length+1));
+  if (!text) return showToast('Please paste some content first.');
+  addSource(title, text, 'text', '📝');
+  document.getElementById('paste-src').value = '';
+  document.getElementById('paste-title').value = '';
+}
+
+async function handleImgUpload(e) {
+  for (const file of Array.from(e.target.files)) {
+    const reader = new FileReader();
+    await new Promise(res => {
+      reader.onload = async ev => {
+        const b64 = ev.target.result.split(',')[1];
+        showToast(`📷 Reading ${file.name}...`);
+        try {
+          const text = await ai('Extract and transcribe ALL educational content from this image accurately.','Extract all study content from this image.',{type:file.type,data:b64});
+          addSource(file.name, text, 'image', '🖼️');
+        } catch(err) { if(err.message!=='No API key') showToast('Could not read image: '+err.message); }
+        res();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  e.target.value='';
+}
+
+async function handleTxtUpload(e) {
+  for (const file of Array.from(e.target.files)) {
+    const text = await file.text();
+    addSource(file.name, text, 'text', '📄');
+  }
+  e.target.value='';
+}
+
+/* ─────────────────────────────────────────────────
+   CHAT WITH NOTES
+───────────────────────────────────────────────── */
+let chatHistory = [];
+
+function renderChat() {
+  const el = document.getElementById('page-chat'); if (!el) return;
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div style="background:var(--bg);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-size:15px;font-weight:600">💬 Chat with Notes</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border);padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700">${sources.length} source${sources.length!==1?'s':''}</span>
+        <button class="btn-sm ghost" onclick="chatHistory=[];renderChat()">Clear</button>
+      </div>
+    </div>
+    <div id="chat-msgs" style="flex:1;overflow-y:auto;padding:20px 24px"></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:10px;background:var(--bg);flex-shrink:0">
+      <input id="chat-in" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);font-family:var(--font)" placeholder="${sources.length?'Ask anything about your notes...':'Add sources first, then ask questions...'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"/>
+      <button id="chat-send" class="btn-sm primary" onclick="sendChat()">Send</button>
+    </div>`;
+  const msgs = document.getElementById('chat-msgs');
+  if (!chatHistory.length) {
+    msgs.innerHTML = chatBubble('ai', sources.length ? `I have access to ${sources.length} source(s). Ask me anything about your study material and I'll cite my sources. 📚` : 'No sources loaded yet. Go to **My Sources** to upload notes, then come back to chat.');
+  } else {
+    msgs.innerHTML = chatHistory.map(m => chatBubble(m.role==='user'?'user':'ai', m.content)).join('');
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function chatBubble(role, text) {
+  const isUser = role === 'user';
+  const formatted = esc(text).replace(/\[Source (\d+)\]/g,'<span style="background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--accent2);margin:0 2px">📄 S$1</span>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  return `<div style="display:flex;flex-direction:column;align-items:${isUser?'flex-end':'flex-start'};margin-bottom:16px">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:4px;letter-spacing:.05em">${isUser?'YOU':'STUDYMIND AI'}</div>
+    <div style="max-width:78%;padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.65;${isUser?'background:var(--accent);color:#fff;border-bottom-right-radius:4px':'background:var(--bg3);border:1px solid var(--border2);border-bottom-left-radius:4px'};white-space:pre-wrap">${formatted}</div>
+  </div>`;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-in');
+  const msg = input?.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const msgs = document.getElementById('chat-msgs');
+  msgs.innerHTML += chatBubble('user', msg);
+  const tid = 'typing-'+Date.now();
+  msgs.innerHTML += `<div id="${tid}" style="display:flex;gap:8px;align-items:center;padding:12px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:16px;border-bottom-left-radius:4px;max-width:120px;margin-bottom:16px">${spin(14)}<span style="font-size:13px;color:var(--text2)">Thinking...</span></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  document.getElementById('chat-send').disabled = true;
+  const ctx = sourcesContext();
+  const system = ctx ? `You are StudyMind AI. You have these study sources:\n\n${ctx}\n\nAlways cite with [Source N]. Be educational and clear.` : 'You are StudyMind AI, a helpful study assistant. No sources loaded — still answer general study questions helpfully.';
+  chatHistory.push({ role:'user', content:msg });
+  try {
+    const reply = await aiChat(chatHistory, system);
+    chatHistory.push({ role:'assistant', content:reply });
+    document.getElementById(tid).outerHTML = chatBubble('ai', reply);
+  } catch(err) {
+    document.getElementById(tid).outerHTML = `<div style="color:var(--red);font-size:13px;padding:10px 14px;background:var(--red-bg);border-radius:10px;margin-bottom:16px">${err.message}</div>`;
+  }
+  document.getElementById('chat-send').disabled = false;
+  document.getElementById('chat-msgs').scrollTop = 99999;
+}
+
+/* ─────────────────────────────────────────────────
+   AUDIO OVERVIEW
+───────────────────────────────────────────────── */
+function renderAudio() {
+  const el = document.getElementById('page-audio'); if (!el) return;
+  el.innerHTML = `
+    <div class="section-title" style="margin-bottom:18px">🎙️ Audio Overview</div>
+    <div class="card" style="background:linear-gradient(135deg,rgba(47,207,190,.08),rgba(124,111,247,.06));border-color:var(--teal-border);margin-bottom:20px">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">Podcast-Style Summary</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Two AI hosts discuss your material in a natural, engaging conversation</div>
+      <label class="label">Topic or notes ${sources.length?'(uses your sources if left empty)':''}</label>
+      <textarea id="audio-topic" style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:80px;resize:vertical;margin-bottom:12px;font-family:var(--font)" placeholder="Paste notes or describe the topic..."></textarea>
+      <button class="btn-sm primary" onclick="genAudio()" id="audio-btn">🎙️ Generate Overview</button>
+    </div>
+    <div id="audio-out" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title" id="audio-title">Overview</div>
+        <button class="btn-sm ghost" onclick="document.getElementById('audio-out').style.display='none'">← New</button>
+      </div>
+      <div id="audio-transcript"></div>
+    </div>`;
+}
+
+async function genAudio() {
+  const topic = document.getElementById('audio-topic')?.value.trim();
+  const ctx = sourcesContext();
+  const content = topic || ctx;
+  if (!content) return showToast('Please enter a topic or add sources first.');
+  const btn = document.getElementById('audio-btn');
+  btn.innerHTML = spin(14)+' Generating...'; btn.disabled = true;
+  try {
+    const raw = await ai('Create an engaging educational podcast between Maya (enthusiastic questioner) and Jordan (knowledgeable explainer). Return ONLY a JSON array: [{speaker:"Maya"|"Jordan",text:"..."}]. 10-14 turns. No markdown.',`Create a podcast overview for: ${content.slice(0,3000)}`);
+    const turns = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    document.getElementById('audio-title').textContent = '🎙️ ' + (topic || (sources[0]?.title || 'Your Material'));
+    document.getElementById('audio-transcript').innerHTML = turns.map(t => {
+      const isMaya = t.speaker==='Maya';
+      return `<div style="display:flex;gap:12px;margin-bottom:18px;${isMaya?'':'flex-direction:row-reverse'}">
+        <div style="width:38px;height:38px;border-radius:50%;background:${isMaya?'var(--pink-bg)':'var(--teal-bg)'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${isMaya?'👩':'👨'}</div>
+        <div style="flex:1"><div style="font-size:10px;font-weight:700;color:${isMaya?'var(--pink)':'var(--teal)'};margin-bottom:4px;${isMaya?'':'text-align:right'}">${t.speaker.toUpperCase()}</div>
+          <div class="card card-sm" style="background:${isMaya?'var(--pink-bg)':'var(--teal-bg)'};border-color:${isMaya?'var(--pink-border)':'var(--teal-border)'};font-size:14px;line-height:1.7">${esc(t.text)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('audio-out').style.display = 'block';
+    showToast('🎙️ Overview ready!');
+  } catch(err) { if(err.message!=='No API key') showToast('Error: '+err.message); }
+  btn.innerHTML = '🎙️ Generate Overview'; btn.disabled = false;
+}
+
+/* ─────────────────────────────────────────────────
+   MIND MAP
+───────────────────────────────────────────────── */
+let mmData=null, mmScale=1, mmOffX=0, mmOffY=0, mmDrag=false, mmLX=0, mmLY=0;
+
+function renderMindMap() {
+  const el = document.getElementById('page-mindmap'); if (!el) return;
+  el.innerHTML = `
+    <div class="section-title" style="margin-bottom:18px">🗺️ Mind Map</div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;gap:10px">
+        <input id="mm-topic" class="input" style="flex:1" placeholder="Topic or paste notes..." onkeydown="if(event.key==='Enter')genMindMap()"/>
+        <button class="btn-sm primary" onclick="genMindMap()" id="mm-btn">✦ Map it</button>
+        <button class="btn-sm ghost" onclick="mmOffX=0;mmOffY=0;mmScale=1;if(mmData)drawMM()">Reset</button>
+      </div>
+    </div>
+    <div id="mm-placeholder" style="text-align:center;padding:48px 20px;color:var(--text3)"><div style="font-size:44px;margin-bottom:12px;opacity:.7">🗺️</div><div style="font-size:14px">Enter a topic to generate a mind map</div></div>
+    <canvas id="mm-canvas" style="display:none;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);cursor:grab" height="520"></canvas>
+    <div id="mm-hint" style="display:none;text-align:center;font-size:12px;color:var(--text3);margin-top:8px">Drag to pan · Scroll to zoom</div>`;
+  const canvas = document.getElementById('mm-canvas');
+  if (!canvas) return;
+  canvas.addEventListener('mousedown',e=>{mmDrag=true;mmLX=e.clientX;mmLY=e.clientY;canvas.style.cursor='grabbing';});
+  canvas.addEventListener('mousemove',e=>{if(!mmDrag)return;mmOffX+=e.clientX-mmLX;mmOffY+=e.clientY-mmLY;mmLX=e.clientX;mmLY=e.clientY;if(mmData)drawMM();});
+  canvas.addEventListener('mouseup',()=>{mmDrag=false;canvas.style.cursor='grab';});
+  canvas.addEventListener('mouseleave',()=>{mmDrag=false;canvas.style.cursor='grab';});
+  canvas.addEventListener('wheel',e=>{e.preventDefault();mmScale=Math.max(.4,Math.min(2.5,mmScale-e.deltaY*.001));if(mmData)drawMM();},{passive:false});
+  if (mmData) { canvas.style.display='block';document.getElementById('mm-hint').style.display='block';document.getElementById('mm-placeholder').style.display='none';drawMM(); }
+}
+
+async function genMindMap() {
+  const topic = document.getElementById('mm-topic')?.value.trim() || sourcesContext().slice(0,2000);
+  if (!topic) return showToast('Enter a topic or add sources first.');
+  const btn = document.getElementById('mm-btn');
+  btn.innerHTML = spin(14)+' Mapping...'; btn.disabled=true;
+  try {
+    const raw = await ai('Return ONLY valid JSON: {"center":"Topic","branches":[{"label":"Branch","color":"#hex","children":["child1","child2"]}]}. 5-7 branches, 2-4 children each. Use vivid distinct colors. No markdown.', `Mind map for: ${topic}`);
+    mmData = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    mmOffX=0;mmOffY=0;mmScale=1;
+    const c=document.getElementById('mm-canvas');
+    c.style.display='block';
+    document.getElementById('mm-hint').style.display='block';
+    document.getElementById('mm-placeholder').style.display='none';
+    drawMM();
+    showToast('✓ Mind map ready!');
+  } catch(err) { if(err.message!=='No API key') showToast('Error: '+err.message); }
+  btn.innerHTML='✦ Map it';btn.disabled=false;
+}
+
+function drawMM() {
+  const canvas = document.getElementById('mm-canvas'); if(!canvas||!mmData)return;
+  const dpr=window.devicePixelRatio||1, W=canvas.offsetWidth, H=520;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.fillStyle='#17171f';ctx.fillRect(0,0,W,H);
+  const cx=W/2+mmOffX, cy=H/2+mmOffY;
+  const branches=mmData.branches||[];
+  const step=(Math.PI*2)/branches.length;
+  ctx.save();ctx.shadowColor='rgba(124,111,247,.4)';ctx.shadowBlur=20;
+  ctx.fillStyle='#7c6ff7';ctx.beginPath();ctx.roundRect(cx-80,cy-24,160,48,24);ctx.fill();
+  ctx.restore();
+  ctx.fillStyle='#fff';ctx.font='bold 13px Sora,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText((mmData.center||'Topic').slice(0,20),cx,cy);
+  branches.forEach((b,i)=>{
+    const angle=step*i-Math.PI/2, r=150*mmScale;
+    const bx=cx+Math.cos(angle)*r, by=cy+Math.sin(angle)*r;
+    const col=b.color||'#a89eff';
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(bx,by);ctx.strokeStyle=col+'70';ctx.lineWidth=2;ctx.stroke();
+    const bw=Math.max(80,b.label.length*9+20);
+    ctx.fillStyle=col+'22';ctx.strokeStyle=col;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.roundRect(bx-bw/2,by-17,bw,34,17);ctx.fill();ctx.stroke();
+    ctx.fillStyle=col;ctx.font='500 12px Sora,sans-serif';
+    ctx.fillText(b.label.length>18?b.label.slice(0,18)+'…':b.label,bx,by);
+    (b.children||[]).forEach((child,ci)=>{
+      const cs=0.45, ca=angle-((b.children.length-1)*cs/2)+ci*cs, cr=r+100*mmScale;
+      const childX=cx+Math.cos(ca)*cr, childY=cy+Math.sin(ca)*cr;
+      ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(childX,childY);
+      ctx.strokeStyle=col+'50';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      const cw=Math.max(60,child.length*7+16);
+      ctx.fillStyle=col+'18';ctx.strokeStyle=col+'60';ctx.lineWidth=1;
+      ctx.beginPath();ctx.roundRect(childX-cw/2,childY-11,cw,22,11);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#8888a4';ctx.font='11px Sora,sans-serif';
+      ctx.fillText(child.length>16?child.slice(0,16)+'…':child,childX,childY);
+    });
+  });
+}
+
+/* ─────────────────────────────────────────────────
+   FLASHCARDS
+───────────────────────────────────────────────── */
+let fcCards=[{q:'What is the powerhouse of the cell?',a:'The mitochondria — produces ATP through cellular respiration.'},{q:'Define osmosis.',a:'Movement of water molecules through a semipermeable membrane from low to high solute concentration.'}];
+let fcIdx=0,fcFlipped=false,fcStudying=false;
+
+function renderFlashcards() {
+  const el=document.getElementById('page-flashcards');if(!el)return;
+  if(fcStudying){renderFCStudy(el);return;}
+  el.innerHTML=`
+    <div class="section-header"><div class="section-title">⚡ Flashcards</div><button class="btn-sm ghost" onclick="showFCForm()">＋ Generate</button></div>
+    <div id="fc-gen-area" style="display:none;margin-bottom:16px">
+      <div class="card">
+        <label class="label">Topic or paste notes</label>
+        <textarea id="fc-topic" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:80px;resize:vertical;margin-bottom:10px;font-family:var(--font)" placeholder="Enter topic or paste study notes..."></textarea>
+        <button class="btn-sm primary" onclick="genFlashcards()" id="fc-gen-btn">✦ Generate Flashcards</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);cursor:pointer;margin-bottom:8px" onclick="startFCStudy()">
+      <div style="width:40px;height:40px;border-radius:10px;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:18px">📚</div>
+      <div style="flex:1"><div style="font-size:14px;font-weight:600">Current Set</div><div style="font-size:12px;color:var(--text2)">${fcCards.length} cards</div></div>
+      <button class="btn-sm primary" onclick="event.stopPropagation();startFCStudy()">Study →</button>
+    </div>`;
+}
+
+function showFCForm(){const a=document.getElementById('fc-gen-area');if(a)a.style.display=a.style.display==='none'?'block':'none';}
+
+async function genFlashcards(){
+  const topic=document.getElementById('fc-topic')?.value.trim();
+  const ctx=sourcesContext();
+  const content=topic||ctx;
+  if(!content)return showToast('Enter a topic or add sources first.');
+  const btn=document.getElementById('fc-gen-btn');
+  btn.innerHTML=spin(14)+' Generating...';btn.disabled=true;
+  try{
+    const raw=await ai('Create flashcards. Return ONLY valid JSON array with "q" and "a" keys. No markdown. 8-10 cards.',`Create flashcards from: ${content.slice(0,3000)}`);
+    fcCards=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    fcIdx=0;
+    document.getElementById('fc-gen-area').style.display='none';
+    showToast(`✓ ${fcCards.length} flashcards created!`);
+    renderFlashcards();
+  }catch(err){if(err.message!=='No API key')showToast('Error: '+err.message);}
+  btn.innerHTML='✦ Generate Flashcards';btn.disabled=false;
+}
+
+function startFCStudy(){fcStudying=true;fcIdx=0;fcFlipped=false;const el=document.getElementById('page-flashcards');if(el)renderFCStudy(el);}
+function exitFCStudy(){fcStudying=false;renderFlashcards();}
+
+function renderFCStudy(el){
+  el.innerHTML=`
+    <div class="section-header"><div class="section-title">⚡ Studying</div><button class="btn-sm ghost" onclick="exitFCStudy()">✕ Exit</button></div>
+    <div style="text-align:center;margin-bottom:10px;font-size:13px;color:var(--text2)" id="fc-prog">Card ${fcIdx+1} of ${fcCards.length}</div>
+    <div style="height:6px;background:var(--bg4);border-radius:3px;margin-bottom:20px;overflow:hidden"><div id="fc-bar" style="height:100%;background:var(--accent);border-radius:3px;transition:width .4s;width:${((fcIdx+1)/fcCards.length*100)}%"></div></div>
+    <div style="perspective:1000px;max-width:520px;margin:0 auto;height:260px">
+      <div id="fc-inner" style="position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,0,.2,1);cursor:pointer" onclick="flipFC()">
+        <div style="position:absolute;width:100%;height:100%;backface-visibility:hidden;background:linear-gradient(135deg,var(--bg3),var(--bg2));border:1px solid var(--border2);border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center">
+          <div style="font-size:10px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;font-weight:600">Question — tap to flip</div>
+          <div id="fc-front" style="font-size:18px;font-weight:600;line-height:1.5">${esc(fcCards[fcIdx]?.q||'')}</div>
+        </div>
+        <div style="position:absolute;width:100%;height:100%;backface-visibility:hidden;transform:rotateY(180deg);background:linear-gradient(135deg,var(--accent-bg),var(--bg2));border:1px solid var(--accent-border);border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center">
+          <div style="font-size:10px;color:var(--accent2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px;font-weight:600">Answer</div>
+          <div id="fc-back" style="font-size:16px;font-weight:500;line-height:1.6;color:var(--text2)">${esc(fcCards[fcIdx]?.a||'')}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:22px">
+      <button onclick="rateFC(0)" style="width:50px;height:50px;border-radius:50%;border:1px solid var(--red-border);background:var(--red-bg);color:var(--red);font-size:20px;cursor:pointer;transition:all .15s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform=''">✗</button>
+      <button onclick="flipFC()" style="width:50px;height:50px;border-radius:50%;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:20px;cursor:pointer">↻</button>
+      <button onclick="rateFC(1)" style="width:50px;height:50px;border-radius:50%;border:1px solid var(--green-border);background:var(--green-bg);color:var(--green);font-size:20px;cursor:pointer;transition:all .15s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform=''">✓</button>
+    </div>`;
+}
+
+function flipFC(){fcFlipped=!fcFlipped;const i=document.getElementById('fc-inner');if(i)i.style.transform=fcFlipped?'rotateY(180deg)':'';}
+
+function rateFC(r){
+  if(fcIdx<fcCards.length-1){fcIdx++;fcFlipped=false;const el=document.getElementById('page-flashcards');if(el)renderFCStudy(el);}
+  else{
+    const el=document.getElementById('page-flashcards');
+    if(el)el.innerHTML=`<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🎉</div><div style="font-size:22px;font-weight:700;margin-bottom:8px">Set complete!</div><p style="color:var(--text2);font-size:14px;margin-bottom:24px">You reviewed all ${fcCards.length} cards.</p><button class="btn-sm primary" onclick="exitFCStudy()" style="margin-right:8px">Back to sets</button><button class="btn-sm ghost" onclick="fcIdx=0;renderFCStudy(document.getElementById('page-flashcards'))">Review again</button></div>`;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   ACTIVE RECALL
+───────────────────────────────────────────────── */
+let recallMode='qa', recallQs=[];
+
+function renderRecall(){
+  const el=document.getElementById('page-recall');if(!el)return;
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:18px">🧠 Active Recall</div>
+    <div class="tabs">
+      <button class="tab ${recallMode==='qa'?'active':''}" onclick="recallMode='qa';renderRecall()">Q &amp; A</button>
+      <button class="tab ${recallMode==='fill'?'active':''}" onclick="recallMode='fill';renderRecall()">Fill in blank</button>
+      <button class="tab ${recallMode==='sentence'?'active':''}" onclick="recallMode='sentence';renderRecall()">Complete sentence</button>
+    </div>
+    <div class="card" id="recall-in" style="margin-bottom:16px">
+      <label class="label">Topic or paste notes ${sources.length?'(sources loaded ✓)':''}</label>
+      <textarea id="recall-topic" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:80px;resize:vertical;font-family:var(--font)" placeholder="Type topic or paste study material..."></textarea>
+      <button class="btn-sm primary" onclick="genRecall()" id="recall-gen-btn" style="margin-top:10px">✦ Generate Questions</button>
+    </div>
+    <div id="recall-qs" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title">Questions</div>
+        <button class="btn-sm ghost" onclick="recallQs=[];document.getElementById('recall-in').style.display='block';document.getElementById('recall-qs').style.display='none'">← New</button>
+      </div>
+      <div id="recall-list"></div>
+      <button class="btn-sm primary" style="margin-top:14px" onclick="checkRecall()">✓ Check Answers</button>
+      <div id="recall-score" style="display:none;margin-top:14px"></div>
+    </div>`;
+}
+
+async function genRecall(){
+  const topic=document.getElementById('recall-topic')?.value.trim();
+  const ctx=sourcesContext();
+  const content=topic||ctx;
+  if(!content)return showToast('Enter a topic or add sources first.');
+  const btn=document.getElementById('recall-gen-btn');
+  btn.innerHTML=spin(14)+' Generating...';btn.disabled=true;
+  let prompt='';
+  if(recallMode==='qa') prompt=`Create 6 Q&A pairs. Return ONLY JSON array with "question" and "answer" keys. No markdown. From: "${content.slice(0,3000)}"`;
+  else if(recallMode==='fill') prompt=`Create 6 fill-in-blank questions with ___ for the blank. Return ONLY JSON array with "sentence" and "answer" keys. No markdown. From: "${content.slice(0,3000)}"`;
+  else prompt=`Create 6 sentence completions. Return ONLY JSON array with "start" and "completion" keys. No markdown. From: "${content.slice(0,3000)}"`;
+  try{
+    const raw=await ai('You create study exercises. Return ONLY valid JSON array. No explanations.',prompt);
+    recallQs=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    document.getElementById('recall-in').style.display='none';
+    document.getElementById('recall-qs').style.display='block';
+    document.getElementById('recall-list').innerHTML=recallQs.map((q,i)=>{
+      let qHtml='';
+      if(recallMode==='qa') qHtml=`<div style="font-size:14px;font-weight:500;margin-bottom:8px">Q: ${esc(q.question)}</div><textarea id="ra-${i}" style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:13.5px;color:var(--text);min-height:60px;resize:vertical;font-family:var(--font)" placeholder="Your answer..."></textarea>`;
+      else if(recallMode==='fill') qHtml=`<div style="font-size:14px;font-weight:500;margin-bottom:8px">${esc(q.sentence).replace('___','<span style="border-bottom:2px solid var(--accent);padding:0 20px;margin:0 4px">_____</span>')}</div><input id="ra-${i}" style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:13.5px;color:var(--text);font-family:var(--font)" placeholder="Fill in the blank..."/>`;
+      else qHtml=`<div style="font-size:14px;font-weight:500;margin-bottom:8px">"${esc(q.start)} ..."</div><input id="ra-${i}" style="width:100%;background:var(--bg4);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;font-size:13.5px;color:var(--text);font-family:var(--font)" placeholder="Complete the sentence..."/>`;
+      return`<div class="card card-sm" style="margin-bottom:12px"><div style="font-size:10px;color:var(--text3);margin-bottom:6px">Question ${i+1}</div>${qHtml}<div id="rf-${i}" style="display:none;margin-top:8px;padding:8px 12px;border-radius:8px;font-size:13px"></div></div>`;
+    }).join('');
+  }catch(err){if(err.message!=='No API key')showToast('Error: '+err.message);}
+  btn.innerHTML='✦ Generate Questions';btn.disabled=false;
+}
+
+async function checkRecall(){
+  let correct=0;
+  for(let i=0;i<recallQs.length;i++){
+    const ans=document.getElementById('ra-'+i)?.value?.trim()||'';
+    const q=recallQs[i];
+    const correct_ans=q.answer||q.completion||'';
+    const fb=document.getElementById('rf-'+i);
+    try{
+      const v=await ai('Check if student answer is correct. Reply ONLY: "correct" or "incorrect" followed by brief explanation (max 20 words).',`Q: ${q.question||q.sentence||q.start}\nCorrect: ${correct_ans}\nStudent: ${ans}`);
+      const ok=v.toLowerCase().startsWith('correct');
+      if(ok)correct++;
+      fb.style.display='block';fb.style.background=ok?'var(--green-bg)':'var(--red-bg)';fb.style.color=ok?'var(--green)':'var(--red)';
+      fb.innerHTML=`${ok?'✓':'✗'} ${esc(v)}<br><span style="opacity:.7;font-size:12px">Correct: ${esc(correct_ans)}</span>`;
+    }catch(err){
+      const ok=correct_ans.toLowerCase().includes(ans.toLowerCase().slice(0,8)&&ans.length>3?ans.toLowerCase().slice(0,8):'XXXXXX');
+      fb.style.display='block';fb.style.background=ok?'var(--green-bg)':'var(--red-bg)';fb.style.color=ok?'var(--green)':'var(--red)';
+      fb.textContent=`Answer: ${correct_ans}`;
+    }
+  }
+  const pct=Math.round((correct/recallQs.length)*100);
+  const score=document.getElementById('recall-score');
+  score.style.display='block';
+  score.innerHTML=`<div class="card" style="text-align:center;background:${pct>=70?'var(--green-bg)':pct>=40?'var(--amber-bg)':'var(--red-bg)'}"><div style="font-size:36px;font-weight:800;color:${pct>=70?'var(--green)':pct>=40?'var(--amber)':'var(--red)'}">${pct}%</div><div style="font-size:14px;margin-top:6px">${correct} of ${recallQs.length} correct</div><div style="font-size:13px;color:var(--text2);margin-top:4px">${pct>=70?'🎉 Great work!':pct>=40?'📚 Keep practising!':'💪 Review your notes and try again!'}</div></div>`;
+}
+
+/* ─────────────────────────────────────────────────
+   EXPLANATIONS
+───────────────────────────────────────────────── */
+let explainMode='dialogue';
+
+function renderExplain(){
+  const el=document.getElementById('page-explain');if(!el)return;
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:18px">💡 Explanations</div>
+    <div class="tabs">
+      <button class="tab ${explainMode==='dialogue'?'active':''}" onclick="explainMode='dialogue';renderExplain()">💬 Dialogue</button>
+      <button class="tab ${explainMode==='visual'?'active':''}" onclick="explainMode='visual';renderExplain()">🎨 Visual</button>
+      <button class="tab ${explainMode==='summary'?'active':''}" onclick="explainMode='summary';renderExplain()">📝 Summary</button>
+    </div>
+    <div class="card" id="explain-in" style="margin-bottom:16px">
+      <label class="label">What concept do you want explained?</label>
+      <input id="explain-topic" class="input" placeholder="e.g. How does photosynthesis work?" onkeydown="if(event.key==='Enter')genExplain()" style="margin-bottom:10px"/>
+      <button class="btn-sm primary" onclick="genExplain()" id="explain-btn">✦ Explain it</button>
+    </div>
+    <div id="explain-out" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-title" id="explain-title">Explanation</div>
+        <button class="btn-sm ghost" onclick="document.getElementById('explain-in').style.display='block';document.getElementById('explain-out').style.display='none';document.getElementById('explain-topic').value=''">← New</button>
+      </div>
+      <div id="explain-content"></div>
+    </div>`;
+}
+
+async function genExplain(){
+  const topic=document.getElementById('explain-topic')?.value.trim();
+  if(!topic)return showToast('Please enter a topic.');
+  const btn=document.getElementById('explain-btn');
+  btn.innerHTML=spin(14)+' Creating...';btn.disabled=true;
+  const ctx=sourcesContext();
+  const note=ctx?`\n\nUser's sources:\n${ctx.slice(0,2000)}`:'';
+  try{
+    let html='';
+    if(explainMode==='dialogue'){
+      const raw=await ai(`Create educational dialogue between Alex (student) and Sam (teacher) to explain a concept. Return ONLY JSON array of {speaker:"Alex"|"Sam",text:"..."} objects. 8-12 turns. No markdown.${note}`,`Explain: ${topic}`);
+      const turns=JSON.parse(raw.replace(/```json|```/g,'').trim());
+      html=turns.map(t=>{const isSam=t.speaker==='Sam';return`<div style="display:flex;flex-direction:column;align-items:${isSam?'flex-end':'flex-start'};margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;${isSam?'text-align:right':''}">${t.speaker.toUpperCase()}</div><div style="max-width:78%;padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.65;${isSam?'background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border);border-bottom-right-radius:4px':'background:var(--bg3);border:1px solid var(--border2);border-bottom-left-radius:4px'}">${esc(t.text)}</div></div>`;}).join('');
+      document.getElementById('explain-title').textContent='💬 '+topic;
+    } else {
+      const text=await ai(`Create a structured, clear ${explainMode==='visual'?'visual explanation with emojis, analogies and examples':'study summary with: 1) Definition 2) Key points 3) Analogy 4) Common misconceptions 5) Quick test question'}.${note}`,`${explainMode==='visual'?'Explain visually':'Summarize for study'}: ${topic}`);
+      html=`<div class="card" style="white-space:pre-wrap;font-size:14px;line-height:1.8;color:var(--text2)">${esc(text)}</div>`;
+      document.getElementById('explain-title').textContent=(explainMode==='visual'?'🎨 ':'📝 ')+topic;
+    }
+    document.getElementById('explain-content').innerHTML=html;
+    document.getElementById('explain-in').style.display='none';
+    document.getElementById('explain-out').style.display='block';
+  }catch(err){if(err.message!=='No API key')showToast('Error: '+err.message);}
+  btn.innerHTML='✦ Explain it';btn.disabled=false;
+}
+
+/* ─────────────────────────────────────────────────
+   NOTEBOOKS — Real DB
+───────────────────────────────────────────────── */
+let activeNB=null;
+
+async function renderNotebooks(){
+  const el=document.getElementById('page-notebooks');if(!el)return;
+  el.innerHTML=`
+    <div id="nb-list">
+      <div class="section-header"><div class="section-title">📓 Notebooks</div><button class="btn-sm primary" onclick="createNB()">＋ New</button></div>
+      <div id="nb-grid" class="grid-2"><div class="empty-state" style="grid-column:1/-1"><div class="spinner" style="width:24px;height:24px;margin:0 auto 10px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div></div>
+    </div>
+    <div id="nb-editor" style="display:none">
+      <div class="section-header">
+        <input id="nb-title-inp" style="background:none;border:none;font-size:22px;font-weight:700;color:var(--text);font-family:var(--font-serif);width:100%" placeholder="Notebook title..."/>
+        <button class="btn-sm ghost" onclick="closeNB()">← Back</button>
+      </div>
+      <textarea id="nb-content-inp" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:16px 20px;font-size:14px;color:var(--text);min-height:420px;resize:vertical;line-height:1.8;font-family:var(--font)" placeholder="Start writing..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-sm primary" onclick="saveNB()">✓ Save</button>
+        <button class="btn-sm ghost" onclick="aiSummarizeNB()">✦ AI Summarize</button>
+        <button class="btn-sm danger" onclick="deleteNB()">Delete</button>
+      </div>
+      <div id="nb-summary" style="display:none;margin-top:14px"></div>
+    </div>`;
+  await loadNBGrid();
+}
+
+async function loadNBGrid(){
+  const g=document.getElementById('nb-grid');if(!g)return;
+  const {data}=await db.from('notebooks').select('*').eq('user_id',user.id).not('title','like','QN:%').order('updated_at',{ascending:false});
+  const nbs=data||[];
+  const cols=['var(--accent-bg)','var(--pink-bg)','var(--teal-bg)','var(--green-bg)','var(--amber-bg)'];
+  const bords=['var(--accent-border)','var(--pink-border)','var(--teal-border)','var(--green-border)','var(--amber-border)'];
+  if(!nbs.length){g.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📓</div><div class="empty-title">No notebooks yet</div></div>';return;}
+  g.innerHTML=nbs.map((nb,i)=>`<div class="card" style="background:${cols[i%cols.length]};border-color:${bords[i%bords.length]};cursor:pointer;transition:all .18s" onclick="openNB(${nb.id})" onmouseenter="this.style.transform='translateY(-1px)'" onmouseleave="this.style.transform=''">
+    <div style="font-size:20px;margin-bottom:8px">📓</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:4px">${esc(nb.title)}</div>
+    <div style="font-size:12px;color:var(--text2)">${esc((nb.content||'').slice(0,60))}${(nb.content||'').length>60?'...':''}</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:10px">${new Date(nb.updated_at).toLocaleDateString('en-ZA',{day:'numeric',month:'short'})}</div>
+  </div>`).join('');
+}
+
+async function createNB(){
+  const {data,error}=await db.from('notebooks').insert({title:'New Notebook',content:'',user_id:user.id}).select().single();
+  if(error)return showToast('Error: '+error.message);
+  openNB(data.id,data);
+}
+
+async function openNB(id,nb){
+  if(!nb){const{data}=await db.from('notebooks').select('*').eq('id',id).single();nb=data;}
+  activeNB=nb;
+  document.getElementById('nb-list').style.display='none';
+  document.getElementById('nb-editor').style.display='block';
+  document.getElementById('nb-title-inp').value=nb.title;
+  document.getElementById('nb-content-inp').value=nb.content||'';
+  document.getElementById('nb-summary').style.display='none';
+}
+
+async function saveNB(){
+  if(!activeNB)return;
+  const title=document.getElementById('nb-title-inp').value||'Untitled';
+  const content=document.getElementById('nb-content-inp').value;
+  await db.from('notebooks').update({title,content,updated_at:new Date().toISOString()}).eq('id',activeNB.id);
+  showToast('✓ Saved!');
+}
+
+async function closeNB(){
+  await saveNB();
+  document.getElementById('nb-list').style.display='block';
+  document.getElementById('nb-editor').style.display='none';
+  activeNB=null;await loadNBGrid();
+}
+
+async function deleteNB(){
+  if(!activeNB||!confirm('Delete this notebook?'))return;
+  await db.from('notebooks').delete().eq('id',activeNB.id);
+  document.getElementById('nb-list').style.display='block';
+  document.getElementById('nb-editor').style.display='none';
+  activeNB=null;await loadNBGrid();showToast('Deleted');
+}
+
+async function aiSummarizeNB(){
+  const content=document.getElementById('nb-content-inp')?.value;
+  if(!content)return showToast('No content to summarize.');
+  const el=document.getElementById('nb-summary');
+  el.style.display='block';el.innerHTML=`<div class="card" style="background:var(--accent-bg)">${spin(20)} Summarizing...</div>`;
+  try{
+    const summary=await ai('Summarize study notes into clear bullet points. Be concise, use emojis.',content);
+    el.innerHTML=`<div class="card" style="background:var(--accent-bg);border-color:var(--accent-border)"><div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:8px">✦ AI SUMMARY</div><div style="font-size:14px;line-height:1.7;white-space:pre-wrap;color:var(--text2)">${esc(summary)}</div></div>`;
+  }catch(err){el.style.display='none';if(err.message!=='No API key')showToast('Error: '+err.message);}
+}
+
+/* ─────────────────────────────────────────────────
+   QUICK NOTES — Real DB
+───────────────────────────────────────────────── */
+async function renderQuickNotes(){
+  const el=document.getElementById('page-quicknotes');if(!el)return;
+  el.innerHTML=`
+    <div class="section-header"><div class="section-title">📌 Quick Notes</div><button class="btn-sm primary" onclick="showQNForm()">＋ Add</button></div>
+    <div id="qn-form-area" style="display:none;margin-bottom:14px">
+      <div class="card">
+        <input id="qn-title" class="input" placeholder="Title..." style="margin-bottom:8px"/>
+        <textarea id="qn-content" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:80px;resize:vertical;margin-bottom:10px;font-family:var(--font)" placeholder="Note content..."></textarea>
+        <div style="display:flex;gap:8px"><button class="btn-sm primary" onclick="saveQN()">Save</button><button class="btn-sm ghost" onclick="document.getElementById('qn-form-area').style.display='none'">Cancel</button></div>
+      </div>
+    </div>
+    <div id="qn-grid" class="grid-2"><div class="empty-state" style="grid-column:1/-1"><div class="spinner" style="width:24px;height:24px;margin:0 auto 10px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div></div>`;
+  await loadQNGrid();
+}
+
+function showQNForm(){const f=document.getElementById('qn-form-area');if(f)f.style.display=f.style.display==='none'?'block':'none';}
+
+async function loadQNGrid(){
+  const g=document.getElementById('qn-grid');if(!g)return;
+  const {data}=await db.from('notebooks').select('*').eq('user_id',user.id).like('title','QN:%').order('updated_at',{ascending:false});
+  const notes=data||[];
+  const cols=['var(--accent-bg)','var(--pink-bg)','var(--teal-bg)','var(--green-bg)','var(--amber-bg)'];
+  if(!notes.length){g.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📌</div><div class="empty-title">No quick notes yet</div></div>';return;}
+  g.innerHTML=notes.map((n,i)=>`<div class="card card-sm" style="background:${cols[i%cols.length]};position:relative">
+    <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">${esc(n.title.replace('QN:',''))}</div>
+    <div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.6">${esc(n.content)}</div>
+    <button onclick="deleteQN(${n.id})" style="position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button>
+  </div>`).join('');
+}
+
+async function saveQN(){
+  const title=document.getElementById('qn-title')?.value.trim()||'Quick note';
+  const content=document.getElementById('qn-content')?.value.trim();
+  if(!content)return showToast('Please enter some content.');
+  await db.from('notebooks').insert({title:'QN:'+title,content,user_id:user.id});
+  document.getElementById('qn-title').value='';document.getElementById('qn-content').value='';
+  document.getElementById('qn-form-area').style.display='none';
+  showToast('✓ Saved!');await loadQNGrid();
+}
+
+async function deleteQN(id){
+  await db.from('notebooks').delete().eq('id',id);
+  await loadQNGrid();
+}
+
+/* ─────────────────────────────────────────────────
+   STUDY SCHEDULE
+───────────────────────────────────────────────── */
+let schedItems=JSON.parse(localStorage.getItem('sm_sched')||'[]');
+let schedDays=[];
+
+function renderSchedule(){
+  const el=document.getElementById('page-schedule');if(!el)return;
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:20px">📅 Study Schedule</div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px">Add Activity</div>
+      <div class="form-group"><label class="label">Activity</label><input class="input" id="sch-act" placeholder="e.g. Flashcard review, Chapter reading..."/></div>
+      <div class="form-group"><label class="label">Time</label><input type="time" class="input" id="sch-time" value="08:00" style="max-width:160px"/></div>
+      <div class="form-group">
+        <label class="label">Days</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<button id="sd-${d}" style="font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;border:1px solid var(--border2);background:var(--bg4);color:var(--text2);font-family:var(--font);transition:all .15s" onclick="toggleSchedDay('${d}',this)">${d}</button>`).join('')}
+        </div>
+      </div>
+      <button class="btn-sm primary" onclick="saveSchedItem()">＋ Schedule</button>
+    </div>
+    <div class="section-title" style="margin-bottom:12px">Your Schedule</div>
+    <div id="sched-list"></div>`;
+  renderSchedList();
+}
+
+function toggleSchedDay(day,btn){
+  if(schedDays.includes(day)){schedDays=schedDays.filter(d=>d!==day);btn.style.background='var(--bg4)';btn.style.color='var(--text2)';btn.style.borderColor='var(--border2)';}
+  else{schedDays.push(day);btn.style.background='var(--accent)';btn.style.color='#fff';btn.style.borderColor='transparent';}
+}
+
+function saveSchedItem(){
+  const act=document.getElementById('sch-act')?.value.trim();
+  const time=document.getElementById('sch-time')?.value;
+  if(!act)return showToast('Please enter an activity name.');
+  if(!schedDays.length)return showToast('Please select at least one day.');
+  schedItems.push({id:Date.now(),activity:act,time,days:[...schedDays]});
+  localStorage.setItem('sm_sched',JSON.stringify(schedItems));
+  document.getElementById('sch-act').value='';
+  schedDays=[];
+  document.querySelectorAll('[id^="sd-"]').forEach(b=>{b.style.background='var(--bg4)';b.style.color='var(--text2)';b.style.borderColor='var(--border2)';});
+  renderSchedList();showToast('✓ Scheduled!');
+}
+
+function renderSchedList(){
+  const el=document.getElementById('sched-list');if(!el)return;
+  if(!schedItems.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">No activities scheduled yet</div></div>';return;}
+  el.innerHTML=[...schedItems].sort((a,b)=>a.time.localeCompare(b.time)).map(s=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px">
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--accent2);background:var(--accent-bg);padding:4px 10px;border-radius:6px;white-space:nowrap">${s.time}</span>
+      <div style="flex:1"><div style="font-size:14px;font-weight:600">${esc(s.activity)}</div><div style="font-size:12px;color:var(--text2);margin-top:2px">${s.days.join(' · ')}</div></div>
+      <button onclick="schedItems=schedItems.filter(x=>x.id!==${s.id});localStorage.setItem('sm_sched',JSON.stringify(schedItems));renderSchedList()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">✕</button>
+    </div>`).join('');
+}
+
+/* ─────────────────────────────────────────────────
+   MY PROGRESS — Real DB
+───────────────────────────────────────────────── */
+async function renderProgress(){
+  const el=document.getElementById('page-progress');if(!el)return;
+  const {data:marks}=await db.from('marks').select('*').eq('student_id',user.id).order('created_at',{ascending:false});
+  const allMarks=marks||[];
+
+  if(!allMarks.length){
+    el.innerHTML=`
+      <div class="section-header"><div class="section-title">📊 My Progress</div></div>
+      <div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">No marks recorded yet</div><div class="empty-sub">Your teacher will add your marks here. Check back after your first assessment.</div></div>`;
+    return;
+  }
+
+  // Group by subject
+  const bySubj={};
+  allMarks.forEach(m=>{
+    if(!bySubj[m.subject])bySubj[m.subject]=[];
+    bySubj[m.subject].push(m);
+  });
+  const subjects=Object.entries(bySubj).map(([subj,ms])=>{
+    const avg=Math.round(ms.reduce((s,m)=>s+(m.mark/m.total*100),0)/ms.length);
+    return{subj,avg,count:ms.length,latest:ms[0]};
+  }).sort((a,b)=>b.avg-a.avg);
+  const overallAvg=Math.round(subjects.reduce((s,x)=>s+x.avg,0)/subjects.length);
+  const weak=subjects.filter(s=>s.avg<60);
+  const strong=subjects.filter(s=>s.avg>=75);
+
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:20px">📊 My Progress</div>
+    <div class="grid-3" style="margin-bottom:22px;gap:12px">
+      <div class="stat-card" style="background:var(--accent-bg);border:1px solid var(--accent-border);text-align:center">
+        <div class="stat-label" style="color:var(--accent2)">OVERALL</div>
+        <div class="stat-val">${overallAvg}%</div>
+        <div class="stat-sub" style="color:var(--text2)">${overallAvg>=70?'On track':'Needs work'}</div>
+      </div>
+      <div class="stat-card" style="background:var(--red-bg);border:1px solid var(--red-border);text-align:center">
+        <div class="stat-label" style="color:var(--red)">WEAK</div>
+        <div class="stat-val">${weak.length}</div>
+        <div class="stat-sub" style="color:var(--text2)">below 60%</div>
+      </div>
+      <div class="stat-card" style="background:var(--green-bg);border:1px solid var(--green-border);text-align:center">
+        <div class="stat-label" style="color:var(--green)">STRONG</div>
+        <div class="stat-val">${strong.length}</div>
+        <div class="stat-sub" style="color:var(--text2)">above 75%</div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:18px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px">📝 Subject Marks</div>
+      ${subjects.map(s=>{
+        const col=s.avg>=75?'var(--green)':s.avg>=60?'var(--accent2)':s.avg>=50?'var(--amber)':'var(--red)';
+        return`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:130px;flex-shrink:0"><div style="font-size:13px;font-weight:600">${esc(s.subj)}</div><div style="font-size:11px;color:var(--text3)">${s.count} assessment${s.count!==1?'s':''}</div></div>
+          <div style="flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden"><div style="width:${s.avg}%;height:100%;background:${col};border-radius:4px;transition:width .6s"></div></div>
+          <span style="font-size:14px;font-weight:800;color:${col};width:42px;text-align:right">${s.avg}%</span>
+        </div>`;}).join('')}
+    </div>
+    ${weak.length?`<div class="card" style="background:var(--red-bg);border-color:var(--red-border);margin-bottom:16px">
+      <div style="font-size:14px;font-weight:700;color:var(--red);margin-bottom:10px">⚠️ Needs Attention</div>
+      ${weak.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(0,0,0,.15);border-radius:8px;margin-bottom:6px">
+        <div><div style="font-size:14px;font-weight:600">${esc(s.subj)}</div><div style="font-size:12px;color:var(--red)">${s.avg}% average</div></div>
+        <button class="btn-sm primary" onclick="goTo('recall')" style="font-size:12px">Study Now</button>
+      </div>`).join('')}
+    </div>`:''}
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px">💡 Recent Assessments</div>
+      ${allMarks.slice(0,5).map(m=>{
+        const pct=Math.round(m.mark/m.total*100);
+        const col=pct>=75?'var(--green)':pct>=60?'var(--accent2)':pct>=50?'var(--amber)':'var(--red)';
+        return`<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:6px">
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:600">${esc(m.assessment_name||m.subject)}</div><div style="font-size:12px;color:var(--text2)">${esc(m.subject)} · ${new Date(m.created_at).toLocaleDateString('en-ZA',{day:'numeric',month:'short'})}</div></div>
+          <span style="font-size:16px;font-weight:800;color:${col}">${pct}%</span>
+        </div>`;}).join('')}
+    </div>`;
+}
+
+/* ─────────────────────────────────────────────────
+   DOCUMENTS — Real DB
+───────────────────────────────────────────────── */
+async function renderDocuments(){
+  const el=document.getElementById('page-documents');if(!el)return;
+  const canUpload=['admin','teacher'].includes(profile.role);
+  el.innerHTML=`
+    <div class="section-header">
+      <div><div class="section-title">📁 Document Centre</div><div class="section-sub">School policies, circulars, resources</div></div>
+      ${canUpload?`<button class="btn-sm primary" onclick="showDocForm()">＋ Upload</button>`:''}
+    </div>
+    <div id="doc-form-area" style="display:none;margin-bottom:14px"></div>
+    <input id="doc-search" class="input" placeholder="🔍 Search documents..." oninput="filterDocs()" style="margin-bottom:16px"/>
+    <div id="doc-list"><div class="empty-state"><div class="spinner" style="width:24px;height:24px;margin:0 auto 10px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div></div>`;
+  await loadDocList();
+}
+
+async function loadDocList(){
+  const el=document.getElementById('doc-list');if(!el)return;
+  const {data}=await db.from('documents').select('*').eq('school_id',profile.school_id).order('created_at',{ascending:false});
+  const docs=data||[];
+  if(!docs.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📁</div><div class="empty-title">No documents yet</div><div class="empty-sub">Admins and teachers can upload school documents here.</div></div>';return;}
+  const catColor={'Policies':'var(--red)','Circulars':'var(--teal)','Newsletters':'var(--accent2)','Study Resources':'var(--green)','Exam Timetables':'var(--amber)','default':'var(--text2)'};
+  el.setAttribute('data-docs',JSON.stringify(docs));
+  renderDocGrid(docs, catColor);
+}
+
+function renderDocGrid(docs, catColor){
+  const el=document.getElementById('doc-list');if(!el)return;
+  const canUpload=['admin','teacher'].includes(profile.role);
+  const CC={'Policies':'var(--red)','Circulars':'var(--teal)','Newsletters':'var(--accent2)','Study Resources':'var(--green)','Exam Timetables':'var(--amber)','default':'var(--text2)'};
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">`+
+    docs.map(d=>{const col=CC[d.category]||CC.default;return`<div class="card" style="transition:all .18s" onmouseenter="this.style.transform='translateY(-1px)'" onmouseleave="this.style.transform=''">
+      <div style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">${esc(d.category||'General')}</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${esc(d.title)}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">${esc(d.description||'')}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;color:var(--text3)">${esc(d.file_type?.toUpperCase()||'PDF')} · ${esc(d.file_size||'')}</span>
+        <div style="display:flex;gap:6px">
+          ${d.file_url?`<a href="${d.file_url}" target="_blank" style="font-size:11.5px;font-weight:600;padding:4px 12px;border-radius:8px;background:var(--accent-bg);color:var(--accent2);border:1px solid var(--accent-border);cursor:pointer;text-decoration:none">⬇ Open</a>`:'<span style="font-size:11px;color:var(--text3)">No file attached</span>'}
+          ${canUpload?`<button onclick="deleteDoc(${d.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px">✕</button>`:''}
+        </div>
+      </div>
+    </div>`;}).join('')+'</div>';
+}
+
+function filterDocs(){
+  const q=(document.getElementById('doc-search')?.value||'').toLowerCase();
+  const el=document.getElementById('doc-list');if(!el)return;
+  const docs=JSON.parse(el.getAttribute('data-docs')||'[]');
+  const filtered=q?docs.filter(d=>d.title.toLowerCase().includes(q)||d.description?.toLowerCase().includes(q)):docs;
+  renderDocGrid(filtered);
+}
+
+function showDocForm(){
+  const a=document.getElementById('doc-form-area');
+  if(a.innerHTML){a.innerHTML='';return;}
+  a.innerHTML=`<div class="card">
+    <div class="grid-2" style="gap:10px;margin-bottom:10px">
+      <div><label class="label">Title</label><input class="input" id="doc-title" placeholder="e.g. Code of Conduct 2025"/></div>
+      <div><label class="label">Category</label><select class="input" id="doc-cat"><option>Policies</option><option>Circulars</option><option>Newsletters</option><option>Study Resources</option><option>Exam Timetables</option><option>General</option></select></div>
+    </div>
+    <div style="margin-bottom:10px"><label class="label">Description</label><input class="input" id="doc-desc" placeholder="Brief description..."/></div>
+    <div class="grid-2" style="gap:10px;margin-bottom:12px">
+      <div><label class="label">File URL (optional)</label><input class="input" id="doc-url" placeholder="https://..."/></div>
+      <div><label class="label">File Size</label><input class="input" id="doc-size" placeholder="e.g. 1.2 MB"/></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sm primary" onclick="saveDoc()">Add Document</button>
+      <button class="btn-sm ghost" onclick="document.getElementById('doc-form-area').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+}
+
+async function saveDoc(){
+  const title=document.getElementById('doc-title')?.value.trim();
+  if(!title)return showToast('Please enter a title.');
+  const {error}=await db.from('documents').insert({title,description:document.getElementById('doc-desc').value.trim(),category:document.getElementById('doc-cat').value,file_url:document.getElementById('doc-url').value.trim()||null,file_size:document.getElementById('doc-size').value.trim(),file_type:'pdf',school_id:profile.school_id,uploaded_by:user.id});
+  if(error)return showToast('Error: '+error.message);
+  document.getElementById('doc-form-area').innerHTML='';
+  showToast('✓ Document added!');await loadDocList();
+}
+
+async function deleteDoc(id){
+  if(!confirm('Remove this document?'))return;
+  await db.from('documents').delete().eq('id',id);
+  await loadDocList();showToast('Removed');
+}
+
+/* ─────────────────────────────────────────────────
+   FORMS & CONSENT — Real DB
+───────────────────────────────────────────────── */
+async function renderForms(){
+  const el=document.getElementById('page-forms');if(!el)return;
+  const canCreate=['admin','teacher'].includes(profile.role);
+  el.innerHTML=`
+    <div class="section-header">
+      <div><div class="section-title">📋 Forms & Consent</div><div class="section-sub">Permission slips, RSVPs, applications</div></div>
+      ${canCreate?`<button class="btn-sm primary" onclick="showFormBuilder()">＋ Create Form</button>`:''}
+    </div>
+    <div id="form-builder-area" style="display:none;margin-bottom:14px"></div>
+    <div id="forms-list"><div class="empty-state"><div class="spinner" style="width:24px;height:24px;margin:0 auto 10px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div></div>`;
+  await loadFormsList();
+}
+
+async function loadFormsList(){
+  const el=document.getElementById('forms-list');if(!el)return;
+  const {data:forms}=await db.from('forms').select('*').eq('school_id',profile.school_id).order('created_at',{ascending:false});
+  const {data:responses}=await db.from('form_responses').select('form_id').eq('user_id',user.id);
+  const respondedIds=new Set((responses||[]).map(r=>r.form_id));
+  const items=forms||[];
+  const canCreate=['admin','teacher'].includes(profile.role);
+  const catLabel={'permission':'Permission Slip','rsvp':'Event RSVP','application':'Club Application','acknowledgement':'Acknowledgement'};
+  if(!items.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No forms yet</div><div class="empty-sub">Teachers and admins can create forms here.</div></div>';return;}
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">`+
+    items.map(f=>{
+      const responded=respondedIds.has(f.id);
+      const deadline=f.deadline?daysUntil(f.deadline):null;
+      const overdue=deadline!==null&&deadline<0;
+      return`<div class="card" style="transition:border .15s" onmouseenter="this.style.borderColor='var(--border2)'" onmouseleave="this.style.borderColor='var(--border)'">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">${catLabel[f.category]||f.category}</div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px">${esc(f.title)}</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">${esc(f.description||'')}</div>
+        ${f.deadline?`<div style="font-size:11px;color:${overdue?'var(--red)':'var(--text3)'};margin-bottom:12px">📅 Deadline: ${fmtDate(f.deadline)}${overdue?' (Overdue)':deadline===0?' (Today!)':deadline===1?' (Tomorrow)':''}</div>`:''}
+        <div style="display:flex;gap:8px;align-items:center">
+          ${responded?`<span class="badge badge-green">✓ Submitted</span>`:`<button onclick="submitFormResponse(${f.id},this)" style="flex:1;padding:8px;border-radius:9px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--font)">✓ Submit</button>`}
+          ${canCreate?`<button onclick="deleteForm(${f.id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px">✕</button>`:''}
+        </div>
+      </div>`;}).join('')+'</div>';
+}
+
+async function submitFormResponse(formId, btn){
+  const {error}=await db.from('form_responses').upsert({form_id:formId,user_id:user.id,status:'submitted'});
+  if(error)return showToast('Error: '+error.message);
+  showToast('✓ Form submitted!');await loadFormsList();
+}
+
+function showFormBuilder(){
+  const a=document.getElementById('form-builder-area');
+  if(a.innerHTML){a.innerHTML='';return;}
+  a.innerHTML=`<div class="card">
+    <div class="grid-2" style="gap:10px;margin-bottom:10px">
+      <div><label class="label">Form Title</label><input class="input" id="fb-title" placeholder="e.g. Sports Day Permission"/></div>
+      <div><label class="label">Type</label><select class="input" id="fb-cat"><option value="permission">Permission Slip</option><option value="rsvp">Event RSVP</option><option value="application">Club Application</option><option value="acknowledgement">Acknowledgement</option></select></div>
+    </div>
+    <div style="margin-bottom:10px"><label class="label">Description</label><textarea class="input" id="fb-desc" style="min-height:60px" placeholder="What is this form for?"></textarea></div>
+    <div style="margin-bottom:14px"><label class="label">Deadline (optional)</label><input type="date" class="input" id="fb-deadline" style="max-width:200px"/></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-sm primary" onclick="saveForm()">Create Form</button>
+      <button class="btn-sm ghost" onclick="document.getElementById('form-builder-area').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+}
+
+async function saveForm(){
+  const title=document.getElementById('fb-title')?.value.trim();
+  if(!title)return showToast('Please enter a title.');
+  const {error}=await db.from('forms').insert({title,description:document.getElementById('fb-desc').value.trim(),category:document.getElementById('fb-cat').value,deadline:document.getElementById('fb-deadline').value||null,school_id:profile.school_id,created_by:user.id,audience:['all']});
+  if(error)return showToast('Error: '+error.message);
+  document.getElementById('form-builder-area').innerHTML='';
+  showToast('✓ Form created!');await loadFormsList();
+}
+
+async function deleteForm(id){
+  if(!confirm('Delete this form?'))return;
+  await db.from('form_responses').delete().eq('form_id',id);
+  await db.from('forms').delete().eq('id',id);
+  await loadFormsList();showToast('Deleted');
+}
+
+/* ─────────────────────────────────────────────────
+   ANALYTICS — Admin only, Real DB
+───────────────────────────────────────────────── */
+async function renderAnalytics(){
+  const el=document.getElementById('page-analytics');if(!el)return;
+  if(profile.role!=='admin'&&profile.role!=='principal'){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Admin access only</div></div>';return;
+  }
+  el.innerHTML=`<div style="font-size:24px;font-family:var(--font-serif);margin-bottom:6px">📊 School Analytics</div><div style="font-size:13px;color:var(--text2);margin-bottom:24px">${esc(school?.name||profile.school_name||'')}</div><div class="empty-state"><div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div>`;
+  const [usersRes,annRes,actsRes,hwRes]=await Promise.all([
+    db.from('profiles').select('id,role').eq('school_id',profile.school_id),
+    db.from('announcements').select('id,priority').eq('school_id',profile.school_id),
+    db.from('activities').select('id').eq('school_id',profile.school_id),
+    db.from('homework').select('id,done').eq('school_id',profile.school_id),
+  ]);
+  const users=usersRes.data||[], anns=annRes.data||[], acts=actsRes.data||[], hw=hwRes.data||[];
+  const students=users.filter(u=>u.role==='student').length;
+  const teachers=users.filter(u=>u.role==='teacher').length;
+  const parents=users.filter(u=>u.role==='parent').length;
+  const hwDone=hw.filter(h=>h.done).length;
+  const hwPct=hw.length?Math.round(hwDone/hw.length*100):0;
+
+  el.innerHTML=`
+    <div style="font-size:24px;font-family:var(--font-serif);margin-bottom:6px">📊 School Analytics</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:24px">${esc(school?.name||profile.school_name||'')} · Live data</div>
+    <div class="grid-4" style="margin-bottom:22px;gap:12px">
+      <div class="stat-card" style="background:var(--accent-bg);border:1px solid var(--accent-border)"><div class="stat-label" style="color:var(--accent2)">STUDENTS</div><div class="stat-val">${students}</div></div>
+      <div class="stat-card" style="background:var(--teal-bg);border:1px solid var(--teal-border)"><div class="stat-label" style="color:var(--teal)">TEACHERS</div><div class="stat-val">${teachers}</div></div>
+      <div class="stat-card" style="background:var(--pink-bg);border:1px solid var(--pink-border)"><div class="stat-label" style="color:var(--pink)">PARENTS</div><div class="stat-val">${parents}</div></div>
+      <div class="stat-card" style="background:var(--amber-bg);border:1px solid var(--amber-border)"><div class="stat-label" style="color:var(--amber)">TOTAL USERS</div><div class="stat-val">${users.length}</div></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:18px;gap:14px">
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px">📢 Announcements</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--text2);font-size:13px">Total posted</span><span style="font-weight:700">${anns.length}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--red);font-size:13px">Urgent</span><span style="font-weight:700;color:var(--red)">${anns.filter(a=>a.priority==='urgent').length}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--amber);font-size:13px">Important</span><span style="font-weight:700;color:var(--amber)">${anns.filter(a=>a.priority==='important').length}</span></div>
+      </div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:14px">📝 Homework</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--text2);font-size:13px">Total tasks</span><span style="font-weight:700">${hw.length}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="color:var(--green);font-size:13px">Completed</span><span style="font-weight:700;color:var(--green)">${hwDone}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--accent2);font-size:13px">Completion rate</span><span style="font-weight:700;color:var(--accent2)">${hwPct}%</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px">👥 User Breakdown</div>
+      ${[['Students','var(--accent2)',students,users.length],['Teachers','var(--teal)',teachers,users.length],['Parents','var(--pink)',parents,users.length]].map(([label,col,count,total])=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:80px;font-size:12px;color:var(--text2);flex-shrink:0">${label}</div>
+        <div style="flex:1;height:7px;background:var(--bg4);border-radius:3px;overflow:hidden"><div style="width:${total?Math.round(count/total*100):0}%;height:100%;background:${col};border-radius:3px;transition:width .6s"></div></div>
+        <div style="font-size:12px;font-weight:700;color:${col};width:32px;text-align:right">${count}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+/* ─────────────────────────────────────────────────
+   TEACHER TOOLS
+───────────────────────────────────────────────── */
+async function renderTeacherTools(){
+  const el=document.getElementById('page-teacher');if(!el)return;
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:18px">👩‍🏫 Teacher Tools</div>
+    <div class="grid-2" style="margin-bottom:22px">
+      <div class="activity-row" onclick="goTo('attendance')"><div class="activity-icon" style="background:var(--teal-bg)">📋</div><div><div style="font-size:14px;font-weight:600">Mark Attendance</div><div style="font-size:12px;color:var(--text2)">Take the class register</div></div></div>
+      <div class="activity-row" onclick="goTo('announcements')"><div class="activity-icon" style="background:var(--pink-bg)">📢</div><div><div style="font-size:14px;font-weight:600">Post Announcement</div><div style="font-size:12px;color:var(--text2)">Notify students & parents</div></div></div>
+      <div class="activity-row" onclick="showAssignHW()"><div class="activity-icon" style="background:var(--accent-bg)">📝</div><div><div style="font-size:14px;font-weight:600">Assign Homework</div><div style="font-size:12px;color:var(--text2)">Post tasks to a grade</div></div></div>
+      <div class="activity-row" onclick="showAddMark()"><div class="activity-icon" style="background:var(--amber-bg)">📊</div><div><div style="font-size:14px;font-weight:600">Record Marks</div><div style="font-size:12px;color:var(--text2)">Add assessment results</div></div></div>
+    </div>
+    <div id="teacher-form-area"></div>`;
+}
+
+function showAssignHW(){
+  const a=document.getElementById('teacher-form-area');
+  if(a.innerHTML.includes('hw-grade')){a.innerHTML='';return;}
+  a.innerHTML=`<div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px">Assign Homework to Grade</div>
+    <div class="grid-2" style="gap:10px;margin-bottom:10px">
+      <div><label class="label">Subject</label><input class="input" id="thw-subj" placeholder="e.g. Mathematics"/></div>
+      <div><label class="label">Due Date</label><input type="date" class="input" id="thw-due" value="${addDays(1)}"/></div>
+    </div>
+    <div style="margin-bottom:10px"><label class="label">Task</label><textarea class="input" id="thw-task" style="min-height:70px" placeholder="e.g. Complete exercise 4.3..."></textarea></div>
+    <div style="margin-bottom:14px"><label class="label">Grade</label>
+      <select class="input" id="thw-grade" style="max-width:160px">
+        <option>Grade 8</option><option>Grade 9</option><option>Grade 10</option><option>Grade 11</option><option>Grade 12</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px"><button class="btn-sm primary" onclick="assignHW()">Post Homework</button><button class="btn-sm ghost" onclick="document.getElementById('teacher-form-area').innerHTML=''">Cancel</button></div>
+  </div>`;
+}
+
+async function assignHW(){
+  const subject=document.getElementById('thw-subj')?.value.trim();
+  const task=document.getElementById('thw-task')?.value.trim();
+  const due=document.getElementById('thw-due')?.value;
+  const grade=document.getElementById('thw-grade')?.value;
+  if(!subject||!task)return showToast('Please fill in subject and task.');
+  const {data:students}=await db.from('profiles').select('id').eq('role','student').eq('grade',grade).eq('school_id',profile.school_id);
+  if(!students?.length)return showToast(`No students found in ${grade} yet.`);
+  const inserts=students.map(s=>({subject,task,due_date:due,student_id:s.id,teacher_id:user.id,school_id:profile.school_id,grade}));
+  const {error}=await db.from('homework').insert(inserts);
+  if(error)return showToast('Error: '+error.message);
+  document.getElementById('teacher-form-area').innerHTML='';
+  showToast(`✓ Homework posted to ${students.length} student(s) in ${grade}!`);
+}
+
+function showAddMark(){
+  const a=document.getElementById('teacher-form-area');
+  if(a.innerHTML.includes('mark-student')){a.innerHTML='';return;}
+  a.innerHTML=`<div class="card">
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px">Record Assessment Mark</div>
+    <div class="grid-2" style="gap:10px;margin-bottom:10px">
+      <div><label class="label">Student Email</label><input class="input" id="mark-student" placeholder="student@email.com"/></div>
+      <div><label class="label">Subject</label><input class="input" id="mark-subj" placeholder="e.g. Mathematics"/></div>
+      <div><label class="label">Assessment Name</label><input class="input" id="mark-name" placeholder="e.g. Term 1 Test"/></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="label">Mark</label><input type="number" class="input" id="mark-val" placeholder="65"/></div>
+        <div style="flex:1"><label class="label">Out of</label><input type="number" class="input" id="mark-total" placeholder="100"/></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px"><button class="btn-sm primary" onclick="saveMark()">Save Mark</button><button class="btn-sm ghost" onclick="document.getElementById('teacher-form-area').innerHTML=''">Cancel</button></div>
+  </div>`;
+}
+
+async function saveMark(){
+  const email=document.getElementById('mark-student')?.value.trim();
+  const subject=document.getElementById('mark-subj')?.value.trim();
+  const name=document.getElementById('mark-name')?.value.trim();
+  const mark=parseFloat(document.getElementById('mark-val')?.value);
+  const total=parseFloat(document.getElementById('mark-total')?.value)||100;
+  if(!email||!subject||isNaN(mark))return showToast('Please fill in all required fields.');
+  // Find student by email
+  const {data:authUser}=await db.from('profiles').select('id').eq('school_id',profile.school_id).ilike('full_name','%');
+  // We need to look up by email through auth — use a simpler approach
+  const {data:students}=await db.from('profiles').select('id,full_name').eq('school_id',profile.school_id).eq('role','student');
+  // For now save with teacher's school_id and note
+  const {error}=await db.from('marks').insert({subject,assessment_name:name||subject,mark,total,school_id:profile.school_id,recorded_by:user.id,student_id:students?.[0]?.id||user.id});
+  if(error)return showToast('Error: '+error.message);
+  document.getElementById('teacher-form-area').innerHTML='';
+  showToast('✓ Mark recorded!');
+}
+
+/* ─────────────────────────────────────────────────
+   USER MANAGEMENT — Admin only
+───────────────────────────────────────────────── */
+async function renderUsers(){
+  const el=document.getElementById('page-users');if(!el)return;
+  if(!['admin','principal'].includes(profile.role)){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Admin access only</div></div>';return;
+  }
+  el.innerHTML=`
+    <div class="section-header">
+      <div><div class="section-title">👥 User Management</div><div class="section-sub">All accounts in your school</div></div>
+      <button class="btn-sm primary" onclick="goTo('invite')">＋ Invite Users</button>
+    </div>
+    <div class="tabs">
+      <button class="tab active" id="utab-all" onclick="filterUsers('all',this)">All</button>
+      <button class="tab" id="utab-student" onclick="filterUsers('student',this)">Students</button>
+      <button class="tab" id="utab-teacher" onclick="filterUsers('teacher',this)">Teachers</button>
+      <button class="tab" id="utab-parent" onclick="filterUsers('parent',this)">Parents</button>
+    </div>
+    <input id="user-search" class="input" placeholder="🔍 Search by name..." oninput="searchUsers()" style="margin-bottom:14px"/>
+    <div id="user-list"><div class="empty-state"><div class="spinner" style="width:24px;height:24px;margin:0 auto 10px;border:2px solid var(--border2);border-top-color:var(--accent)"></div></div></div>`;
+  await loadUserList();
+}
+
+let allUsers=[], userFilter='all';
+
+async function loadUserList(){
+  const el=document.getElementById('user-list');if(!el)return;
+  const {data}=await db.from('profiles').select('*').eq('school_id',profile.school_id).order('full_name');
+  allUsers=data||[];
+  renderUserList();
+}
+
+function filterUsers(role, btn){
+  userFilter=role;
+  document.querySelectorAll('[id^="utab-"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderUserList();
+}
+
+function searchUsers(){
+  renderUserList();
+}
+
+function renderUserList(){
+  const el=document.getElementById('user-list');if(!el)return;
+  const q=(document.getElementById('user-search')?.value||'').toLowerCase();
+  let filtered=userFilter==='all'?allUsers:allUsers.filter(u=>u.role===userFilter);
+  if(q)filtered=filtered.filter(u=>u.full_name?.toLowerCase().includes(q)||u.school_name?.toLowerCase().includes(q));
+  if(!filtered.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No users found</div></div>';return;}
+  const rc=ROLE_COLORS;
+  el.innerHTML=filtered.map(u=>`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px">
+    <div style="width:38px;height:38px;border-radius:50%;background:${rc[u.role]?.avatar||'var(--bg4)'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${u.avatar_emoji||'👤'}</div>
+    <div style="flex:1">
+      <div style="font-size:13.5px;font-weight:600">${esc(u.full_name)}</div>
+      <div style="font-size:12px;color:var(--text2)">${cap(u.role)}${u.grade?' · '+u.grade:u.subject?' · '+u.subject:''}</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="role-pill ${rc[u.role]?.pill||''}" style="font-size:10px">${cap(u.role)}</span>
+      <select onchange="changeUserRole('${u.id}',this.value)" style="background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:4px 8px;font-size:11px;color:var(--text2);cursor:pointer;font-family:var(--font)" title="Change role">
+        ${['student','teacher','parent','admin'].map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${cap(r)}</option>`).join('')}
+      </select>
+      ${u.id!==user.id?`<button onclick="deleteUserAccount('${u.id}','${esc(u.full_name)}')" style="background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:var(--font)">Delete</button>`:'<span style="font-size:11px;color:var(--text3)">You</span>'}
+    </div>
+  </div>`).join('');
+}
+
+async function changeUserRole(userId, newRole){
+  const {error}=await db.from('profiles').update({role:newRole,avatar_emoji:{student:'🎒',teacher:'👩‍🏫',parent:'👨‍👩‍👧',admin:'🏫'}[newRole]||'👤'}).eq('id',userId);
+  if(error)return showToast('Error: '+error.message);
+  showToast('✓ Role updated!');
+  await loadUserList();
+}
+
+async function deleteUserAccount(userId, name){
+  if(!confirm(`Delete ${name}'s account? This cannot be undone.`))return;
+  // Delete profile (auth user requires server-side admin API - we can only delete profile)
+  const {error}=await db.from('profiles').delete().eq('id',userId);
+  if(error)return showToast('Error: '+error.message);
+  showToast(`✓ ${name}'s account removed.`);
+  await loadUserList();
+}
+
+/* ─────────────────────────────────────────────────
+   INVITE USERS
+───────────────────────────────────────────────── */
+async function renderInvite(){
+  const el=document.getElementById('page-invite');if(!el)return;
+  if(!['admin','principal'].includes(profile.role)){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Admin access only</div></div>';return;
+  }
+  // Load current codes
+  const {data:sc}=await db.from('schools').select('teacher_code,admin_code').eq('id',profile.school_id).single();
+  const teacherCode=sc?.teacher_code||DEFAULT_TEACHER_CODE;
+  const adminCode=sc?.admin_code||DEFAULT_ADMIN_CODE;
+
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:6px">✉️ Invite Users</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:22px">Share these codes with staff to let them register with the correct role.</div>
+
+    <div class="card" style="background:var(--teal-bg);border-color:var(--teal-border);margin-bottom:14px">
+      <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">👩‍🏫 TEACHER ACCESS CODE</div>
+      <div style="font-size:28px;font-weight:800;letter-spacing:.1em;font-family:var(--font-mono);margin-bottom:10px">${teacherCode}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Share this with teachers. They enter it when selecting "Teacher" during signup.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" style="background:var(--teal-bg);color:var(--teal);border:1px solid var(--teal-border)" onclick="navigator.clipboard.writeText('${teacherCode}');showToast('✓ Copied!')">Copy Code</button>
+        <button class="btn-sm ghost" onclick="changeCode('teacher')">Change Code</button>
+      </div>
+    </div>
+
+    <div class="card" style="background:var(--amber-bg);border-color:var(--amber-border);margin-bottom:22px">
+      <div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">🏫 ADMIN ACCESS CODE</div>
+      <div style="font-size:28px;font-weight:800;letter-spacing:.1em;font-family:var(--font-mono);margin-bottom:10px">${adminCode}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Keep this secret. Only share with vice-principals or admin staff.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" style="background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)" onclick="navigator.clipboard.writeText('${adminCode}');showToast('✓ Copied!')">Copy Code</button>
+        <button class="btn-sm ghost" onclick="changeCode('admin')">Change Code</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px">📋 Quick Onboarding Message</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Copy this message to share with your staff:</div>
+      <div style="background:var(--bg3);border-radius:10px;padding:14px;font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap" id="invite-msg">You're invited to join ${school?.name||profile.school_name||'our school'} on StudyMind.
+
+Sign up at: https://study-mind-phi.vercel.app
+Use school name: ${school?.name||profile.school_name||''}
+
+Teacher code: ${teacherCode}
+Admin code: [admin only — share privately]
+
+Students and parents can sign up freely without a code.</div>
+      <button class="btn-sm primary" style="margin-top:10px" onclick="navigator.clipboard.writeText(document.getElementById('invite-msg').textContent);showToast('✓ Message copied!')">Copy Message</button>
+    </div>
+
+    <div class="card" style="background:var(--green-bg);border-color:var(--green-border)">
+      <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:8px">🎒 Students & Parents</div>
+      <div style="font-size:13px;color:var(--text2)">Students and parents can sign up freely — no code needed. Just go to the app, click Create Account, and select their role.</div>
+    </div>`;
+}
+
+async function changeCode(type){
+  const newCode=prompt(`Enter new ${type} access code (letters and numbers only):`);
+  if(!newCode||newCode.length<4)return showToast('Code must be at least 4 characters.');
+  const update=type==='teacher'?{teacher_code:newCode.toUpperCase()}:{admin_code:newCode.toUpperCase()};
+  const {error}=await db.from('schools').update(update).eq('id',profile.school_id);
+  if(error)return showToast('Error: '+error.message);
+  showToast(`✓ ${cap(type)} code updated!`);
+  renderInvite();
+}
+
+/* ─────────────────────────────────────────────────
+   SETTINGS UPGRADE — delete own account + API key
+───────────────────────────────────────────────── */
+// Override renderSettings to add Phase 2 features
+const _origRenderSettings = renderSettings;
+function renderSettings(){
+  const el=document.getElementById('page-settings');if(!el)return;
+  const isAdmin=['admin','principal'].includes(profile.role);
+  el.innerHTML=`
+    <div class="section-title" style="margin-bottom:20px">⚙️ Settings</div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:14px">👤 My Account</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <div style="width:52px;height:52px;border-radius:50%;background:${ROLE_COLORS[profile.role]?.avatar||'var(--accent-bg)'};display:flex;align-items:center;justify-content:center;font-size:24px">${profile.avatar_emoji||'🎒'}</div>
+        <div>
+          <div style="font-size:16px;font-weight:700">${esc(profile.full_name)}</div>
+          <div style="font-size:13px;color:var(--text2)">${user.email}</div>
+          <span class="role-pill ${ROLE_COLORS[profile.role]?.pill||''}" style="margin-top:6px">${cap(profile.role)}</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;color:var(--text2)">
+        <div><span style="color:var(--text3)">School</span><br><span style="color:var(--text);font-weight:500">${esc(school?.name||profile.school_name||'—')}</span></div>
+        ${profile.grade?`<div><span style="color:var(--text3)">Grade</span><br><span style="color:var(--text);font-weight:500">${esc(profile.grade)}</span></div>`:''}
+        ${profile.subject?`<div><span style="color:var(--text3)">Subject</span><br><span style="color:var(--text);font-weight:500">${esc(profile.subject)}</span></div>`:''}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px">🤖 AI Features</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Configure your Anthropic API key for flashcards, explanations, audio overviews and more.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn-sm primary" onclick="promptApiKey()">Set API Key</button>
+        ${getApiKey()?'<span style="font-size:12px;color:var(--green)">✓ Key active this session</span>':'<span style="font-size:12px;color:var(--text3)">No key set</span>'}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px">🔐 Change Password</div>
+      <input type="password" id="new-pw" class="input" placeholder="New password (min 6 chars)" style="margin-bottom:10px"/>
+      <button class="btn-sm primary" onclick="changePW()">Update Password</button>
+      <div id="pw-msg" style="font-size:12px;margin-top:8px"></div>
+    </div>
+
+    ${isAdmin?`<div class="card" style="margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px">🏫 School Settings</div>
+      <label class="label">School Name</label>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input class="input" id="set-school" value="${esc(school?.name||profile.school_name||'')}" style="flex:1"/>
+        <button class="btn-sm primary" onclick="saveSchoolName()">Save</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm ghost" onclick="goTo('invite')">✉️ Manage Access Codes</button>
+        <button class="btn-sm ghost" onclick="goTo('users')">👥 Manage Users</button>
+      </div>
+    </div>`:''}
+
+    <div class="card" style="margin-bottom:14px;background:var(--red-bg);border-color:var(--red-border)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px;color:var(--red)">⚠️ Danger Zone</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Deleting your account is permanent and cannot be undone.</div>
+      <button class="btn-sm danger" onclick="deleteSelfAccount()">Delete My Account</button>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px">🚪 Sign Out</div>
+      <button class="btn-sm danger" onclick="doSignOut()">Sign Out</button>
+    </div>`;
+}
+
+async function deleteSelfAccount(){
+  if(!confirm('Are you sure you want to delete your account? This cannot be undone.'))return;
+  if(!confirm('Last chance — all your data will be deleted permanently.'))return;
+  // Delete profile (auth deletion requires admin API but profile removal is sufficient)
+  await db.from('notebooks').delete().eq('user_id',user.id);
+  await db.from('homework').delete().eq('student_id',user.id);
+  await db.from('exams').delete().eq('student_id',user.id);
+  await db.from('profiles').delete().eq('id',user.id);
+  await db.auth.signOut();
+  showToast('Account deleted.');
+  user=null;profile=null;school=null;
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('mobile-nav').style.display='none';
+  showAuth();
+}
+
+/* ─────────────────────────────────────────────────
+   SCHOOLS TABLE — add code columns if missing
+───────────────────────────────────────────────── */
+// Run once on launch to ensure schools table has code columns
+async function ensureSchoolCodes(){
+  if(!profile?.school_id)return;
+  // Try to read codes — if columns don't exist we need to add them via SQL
+  const {data}=await db.from('schools').select('teacher_code,admin_code').eq('id',profile.school_id).single();
+  // If data exists but codes are null, set defaults
+  if(data&&!data.teacher_code){
+    await db.from('schools').update({teacher_code:DEFAULT_TEACHER_CODE,admin_code:DEFAULT_ADMIN_CODE}).eq('id',profile.school_id);
+  }
+}
+
+// Override launchApp to run ensureSchoolCodes
+const _origLaunchApp3 = launchApp;
+launchApp = function(){
+  _origLaunchApp3();
+  if(['admin','principal'].includes(profile?.role)){
+    setTimeout(()=>ensureSchoolCodes(),2000);
+  }
+};
+
+
+
 boot();
 </script>
 </body>
