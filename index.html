@@ -263,9 +263,10 @@ select.input{cursor:pointer;}
     <div class="auth-error" id="signup-err"></div>
     <div class="auth-success" id="signup-ok"></div>
     <div class="form-group">
-      <label class="label">I am a...</label>
+      <label class="label">I am a... <span style="color:var(--red)">*</span></label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">You must select a role to continue</div>
       <div class="role-grid">
-        <div class="role-chip selected" data-role="student" onclick="pickRole('student',this)"><span class="role-emoji">🎒</span>Student</div>
+        <div class="role-chip" data-role="student" onclick="pickRole('student',this)"><span class="role-emoji">🎒</span>Student</div>
         <div class="role-chip" data-role="teacher" onclick="pickRole('teacher',this)"><span class="role-emoji">👩‍🏫</span>Teacher</div>
         <div class="role-chip" data-role="parent" onclick="pickRole('parent',this)"><span class="role-emoji">👨‍👩‍👧</span>Parent</div>
         <div class="role-chip" data-role="admin" onclick="pickRole('admin',this)"><span class="role-emoji">🏫</span>Admin</div>
@@ -316,7 +317,7 @@ select.input{cursor:pointer;}
     <div class="form-group">
       <label class="label">I am a...</label>
       <div class="role-grid">
-        <div class="role-chip selected" data-role="student" onclick="pickGRole('student',this)"><span class="role-emoji">🎒</span>Student</div>
+        <div class="role-chip" data-role="student" onclick="pickGRole('student',this)"><span class="role-emoji">🎒</span>Student</div>
         <div class="role-chip" data-role="teacher" onclick="pickGRole('teacher',this)"><span class="role-emoji">👩‍🏫</span>Teacher</div>
         <div class="role-chip" data-role="parent" onclick="pickGRole('parent',this)"><span class="role-emoji">👨‍👩‍👧</span>Parent</div>
         <div class="role-chip" data-role="admin" onclick="pickGRole('admin',this)"><span class="role-emoji">🏫</span>Admin</div>
@@ -427,8 +428,8 @@ let user    = null; // supabase auth user
 let profile = null; // profiles row
 let school  = null; // schools row
 let page    = 'home';
-let signupRole = 'student';
-let googleRole = 'student';
+let signupRole = null; // null forces user to pick a role
+let googleRole = 'student'; // Google picker defaults to student since it's most common
 let notifOpen  = false;
 let notifications = [];
 
@@ -544,6 +545,7 @@ async function doSignup() {
   const subject= document.getElementById('su-subject')?.value.trim() || '';
   const role   = signupRole;
   const AVATARS = { student:'🎒', teacher:'👩‍🏫', parent:'👨‍👩‍👧', admin:'🏫' };
+  if (!role)            return showErr('signup-err', 'Please select your role (Student, Teacher, etc.).');
   if (!name)            return showErr('signup-err', 'Please enter your full name.');
   if (!email)           return showErr('signup-err', 'Please enter your email address.');
   if (pw.length < 6)    return showErr('signup-err', 'Password must be at least 6 characters.');
@@ -557,7 +559,7 @@ async function doSignup() {
   });
   if (error) { showErr('signup-err', error.message); btn.innerHTML='Create Account'; btn.disabled=false; return; }
   if (data.user && !data.session) {
-    showOk('signup-ok', '✅ Account created! Check your email to confirm your address, then sign in.');
+    showOk('signup-ok', '✅ Account created! Check your email inbox and click the confirmation link, then come back and sign in.');
     btn.innerHTML='Create Account'; btn.disabled=false; return;
   }
   if (data.session) {
@@ -606,6 +608,7 @@ function pickGRole(role, el) {
 async function saveGoogleProfile() {
   if (!user) return;
   const role    = googleRole;
+  if (!role) return showToast('Please select your role first.');
   const schoolN = document.getElementById('gp-school')?.value.trim() || 'Greenwood High School';
   const grade   = document.getElementById('gp-grade-val')?.value || '';
   const subject = document.getElementById('gp-subject-val')?.value.trim() || '';
@@ -1966,6 +1969,7 @@ const DEFAULT_ADMIN_CODE   = 'ADMIN2024';
 const _origDoSignup = doSignup;
 async function doSignup() {
   const role = signupRole;
+  if (!role) return showErr('signup-err', 'Please select your role first.');
   if (['teacher','admin','principal'].includes(role)) {
     const code = document.getElementById('su-access-code')?.value.trim();
     if (!code) return showErr('signup-err', 'Please enter the access code for your role.');
