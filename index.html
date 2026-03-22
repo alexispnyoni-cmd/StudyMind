@@ -605,33 +605,51 @@ function pickGRole(role, el) {
   document.getElementById('gp-subject').style.display = role === 'teacher' ? 'block' : 'none';
 }
 
-async function saveGoogleProfile() {
-  if (!user) return;
-  const role    = googleRole;
-  if (!role) return showToast('Please select your role first.');
-  const schoolN = document.getElementById('gp-school')?.value.trim() || 'Greenwood High School';
-  const grade   = document.getElementById('gp-grade-val')?.value || '';
-  const subject = document.getElementById('gp-subject-val')?.value.trim() || '';
-  const AVATARS = { student:'🎒', teacher:'👩‍🏫', parent:'👨‍👩‍👧', admin:'🏫' };
-  const btn = document.getElementById('gp-btn');
-  btn.innerHTML = '<div class="spinner"></div> Saving...'; btn.disabled = true;
-  // Find or use default school
-  let schoolId = '00000000-0000-0000-0000-000000000001';
-  const { data: sc } = await db.from('schools').select('id').ilike('name', schoolN).single();
-  if (sc) schoolId = sc.id;
-  const { error } = await db.from('profiles').upsert({
-    id: user.id,
-    full_name: user.user_metadata?.full_name || user.email.split('@')[0],
-    role, school_id: schoolId, school_name: schoolN,
-    grade, subject, avatar_emoji: AVATARS[role]
-  });
-  if (error) { showToast('Error: ' + error.message); btn.innerHTML='Complete Setup'; btn.disabled=false; return; }
-  document.getElementById('google-picker').style.display = 'none';
-  await loadProfile();
-  hideLoading();
-  launchApp();
-  btn.innerHTML='Complete Setup'; btn.disabled=false;
-}
+    let isSettingUp = false;
+
+    async function saveGoogleProfile() {
+      if (isSettingUp) return;
+      isSettingUp = true;
+
+      try {
+        console.log("Starting Google profile setup...");
+
+        const { data } = await supabase.auth.getUser();
+        const user = data.user;
+
+        if (!user) {
+          alert("No user found");
+          return;
+        }
+
+        const schoolName = document.getElementById("gp-school").value;
+
+        if (!signupRole) {
+          alert("Please select a role");
+          return;
+        }
+
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            role: signupRole,
+            school_name: schoolName
+          })
+          .eq("id", user.id);
+
+        if (error) throw error;
+
+        console.log("Google setup complete");
+
+        location.reload();
+
+      } catch (err) {
+        console.error(err);
+        alert(err.message);
+      } finally {
+        isSettingUp = false;
+      }
+    }
 
 /* ─── SIGN OUT ─── */
 async function doSignOut() {
