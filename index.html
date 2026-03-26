@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -437,20 +437,42 @@ let notifications = [];
    BOOT
 ═══════════════════════════════════════════════════ */
 async function boot() {
-  setLoading('Checking session...');
-  const { data: { session } } = await db.auth.getSession();
-  if (session?.user) {
-    user = session.user;
-    await loadProfile();
-    if (profile) {
+  try {
+    setLoading('Checking session...');
+
+    const { data, error } = await db.auth.getSession();
+
+    if (error) {
+      console.error('getSession error:', error);
       hideLoading();
-      launchApp();
+      showAuth();
+      return;
+    }
+
+    const session = data?.session;
+
+    if (session?.user) {
+      user = session.user;
+
+      try {
+        await loadProfile();
+      } catch (profileErr) {
+        console.error('loadProfile error:', profileErr);
+      }
+
+      hideLoading();
+
+      if (profile) {
+        launchApp();
+      } else {
+        showAuth();
+      }
     } else {
-      // Profile not ready yet (can happen with Google on first sign-in)
       hideLoading();
       showAuth();
     }
-  } else {
+  } catch (err) {
+    console.error('boot error:', err);
     hideLoading();
     showAuth();
   }
