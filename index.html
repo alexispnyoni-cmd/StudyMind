@@ -636,7 +636,7 @@ function pickGRole(role, el) {
       try {
         console.log("Starting Google profile setup...");
 
-        const { data } = await supabase.auth.getUser();
+        const { data } = await db.auth.getUser();
         const user = data.user;
 
         if (!user) {
