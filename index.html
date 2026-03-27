@@ -437,10 +437,13 @@ let notifications = [];
    BOOT
 ═══════════════════════════════════════════════════ */
 async function boot() {
+  console.log('BOOT START');
+
   try {
     setLoading('Checking session...');
 
     const { data, error } = await db.auth.getSession();
+    console.log('SESSION:', data, error);
 
     if (error) {
       console.error('getSession error:', error);
@@ -456,6 +459,7 @@ async function boot() {
 
       try {
         await loadProfile();
+        console.log('PROFILE AFTER LOAD:', profile);
       } catch (profileErr) {
         console.error('loadProfile error:', profileErr);
       }
@@ -476,18 +480,6 @@ async function boot() {
     hideLoading();
     showAuth();
   }
-}
-
-function setLoading(msg) {
-  document.getElementById('loading-text').textContent = msg;
-  document.getElementById('loading').style.display = 'flex';
-}
-function hideLoading() {
-  document.getElementById('loading').style.display = 'none';
-}
-function showAuth() {
-  document.getElementById('auth').style.display = 'flex';
-  show('s-welcome');
 }
 
 /* ═══════════════════════════════════════════════════
