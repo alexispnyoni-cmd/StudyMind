@@ -432,6 +432,25 @@ let signupRole = null; // null forces user to pick a role
 let googleRole = 'student'; // Google picker defaults to student since it's most common
 let notifOpen  = false;
 let notifications = [];
+function setLoading(msg) {
+  const loader = document.getElementById('loading');
+  const loadingText = document.getElementById('loading-text');
+
+  if (loadingText && typeof msg === 'string') {
+    loadingText.textContent = msg;
+  }
+
+  if (loader) {
+    loader.style.display = 'flex';
+  }
+}
+
+function hideLoading() {
+  const loader = document.getElementById('loading');
+  if (loader) {
+    loader.style.display = 'none';
+  }
+}
 
 /* ═══════════════════════════════════════════════════
    BOOT
