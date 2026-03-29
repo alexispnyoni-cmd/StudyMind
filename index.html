@@ -458,44 +458,9 @@ select.input{cursor:pointer;}
     <div id="page-analytics"   class="page page-fade" style="display:none"></div>
     <div id="page-schedule"    class="page page-fade" style="display:none"></div>
     <div id="page-teacher"     class="page page-fade" style="display:none"></div>
-  </div>
-</div>
-
-
-
-<!-- PAGES -->
-<!-- PAGES — all start empty, filled by renderPage() -->
-    <div id="page-home"        class="page page-fade"></div>
-    <div id="page-announcements" class="page page-fade" style="display:none"></div>
-    <div id="page-homework"    class="page page-fade" style="display:none"></div>
-    <div id="page-exams"       class="page page-fade" style="display:none"></div>
-    <div id="page-timetable"   class="page page-fade" style="display:none"></div>
-    <div id="page-activities"  class="page page-fade" style="display:none"></div>
-    <div id="page-news"        class="page page-fade" style="display:none"></div>
-    <div id="page-attendance"  class="page page-fade" style="display:none"></div>
-    <div id="page-settings"    class="page page-fade" style="display:none"></div>
-    <!-- Phase 2 pages -->
-    <div id="page-users"  class="page page-fade" style="display:none"></div>
-    <div id="page-invite" class="page page-fade" style="display:none"></div>
-    <div id="page-sources"     class="page page-fade" style="display:none"></div>
-    <div id="page-chat"        style="display:none;flex-direction:column;height:calc(100vh - 58px)"></div>
-    <div id="page-flashcards"  class="page page-fade" style="display:none"></div>
-    <div id="page-recall"      class="page page-fade" style="display:none"></div>
-    <div id="page-explain"     class="page page-fade" style="display:none"></div>
-    <div id="page-audio"       class="page page-fade" style="display:none"></div>
-    <div id="page-mindmap"     class="page page-fade" style="display:none"></div>
-    <div id="page-notebooks"   class="page page-fade" style="display:none"></div>
-    <div id="page-quicknotes"  class="page page-fade" style="display:none"></div>
-    <div id="page-documents"   class="page page-fade" style="display:none"></div>
-    <div id="page-forms"       class="page page-fade" style="display:none"></div>
-    <div id="page-progress"    class="page page-fade" style="display:none"></div>
-    <div id="page-analytics"   class="page page-fade" style="display:none"></div>
-    <div id="page-schedule"    class="page page-fade" style="display:none"></div>
-    <div id="page-teacher"     class="page page-fade" style="display:none"></div>
-  </div>
-</div>
     <div id="page-schoolsettings" class="page page-fade" style="display:none"></div>
-  
+  </div>
+</div>
 
 <!-- MOBILE NAV -->
 <nav class="mobile-nav" id="mobile-nav" style="display:none">
@@ -539,23 +504,28 @@ let _schoolSearchCtx = null;
 /* ════════════════════════════════════════════════════════════
    BOOT
 ════════════════════════════════════════════════════════════ */
+let _bootComplete = false;
+
 async function boot() {
   setLoading('Loading StudyMind...');
   try {
     const { data, error } = await db.auth.getSession();
-    if (error) { hideLoading(); showAuth(); return; }
+    if (error) { _bootComplete = true; hideLoading(); showAuth(); return; }
     if (data?.session?.user) {
       user = data.session.user;
       await loadProfile();
+      _bootComplete = true;
       hideLoading();
       if (profile) launchApp();
       else showAuth();
     } else {
+      _bootComplete = true;
       hideLoading();
       showAuth();
     }
   } catch(e) {
     console.error('boot error', e);
+    _bootComplete = true;
     hideLoading();
     showAuth();
   }
@@ -565,12 +535,23 @@ async function boot() {
    PROFILE + SCHOOL
 ════════════════════════════════════════════════════════════ */
 async function loadProfile() {
-  const { data, error } = await db.from('profiles').select('*').eq('id', user.id).single();
-  if (error || !data) return;
-  profile = data;
-  if (profile.school_id) {
-    const { data: s } = await db.from('schools').select('*').eq('id', profile.school_id).single();
-    school = s;
+  try {
+    const { data, error } = await db.from('profiles').select('*').eq('id', user.id).single();
+    if (error) {
+      console.error('loadProfile error:', error.message);
+      return;
+    }
+    if (!data) return;
+    profile = data;
+    if (profile.school_id) {
+      const { data: s } = await db.from('schools')
+        .select('id,name,slug,province,primary_color,student_self_signup,parent_self_signup,school_status')
+        .eq('id', profile.school_id)
+        .single();
+      school = s;
+    }
+  } catch(e) {
+    console.error('loadProfile crash:', e);
   }
 }
 
@@ -882,11 +863,16 @@ async function doSignOut() {
    AUTH STATE LISTENER
 ════════════════════════════════════════════════════════════ */
 db.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
+  // Only handle events AFTER boot() has completed its own session check.
+  // This prevents a race condition where both boot() and this listener
+  // try to load the profile and launch the app simultaneously.
+  if (event === 'SIGNED_IN' && session && _bootComplete) {
     user = session.user;
+    // Check if already launched (e.g. email login already handled it)
+    if (document.getElementById('app').classList.contains('visible')) return;
     const { data: p } = await db.from('profiles').select('*').eq('id', user.id).single();
     if (!p) {
-      // Brand new Google user — needs onboarding
+      // Brand new Google user — show role/school picker
       document.getElementById('loading').style.display = 'none';
       document.getElementById('auth').style.display = 'none';
       document.getElementById('google-picker').style.display = 'flex';
@@ -899,7 +885,7 @@ db.auth.onAuthStateChange(async (event, session) => {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('auth').style.display = 'none';
       document.getElementById('google-picker').style.display = 'none';
-      if (!document.getElementById('app').classList.contains('visible')) launchApp();
+      launchApp();
     }
   }
   if (event === 'SIGNED_OUT') { user = null; profile = null; school = null; }
@@ -1048,7 +1034,7 @@ function launchApp() {
   if (!profile) return;
   const role = profile.role;
   const rc   = ROLE_COLORS[role] || ROLE_COLORS.student;
-  const schoolName = school?.name || 'StudyMind';
+  const schoolName = school?.name || profile?.school_name || 'StudyMind';
 
   document.getElementById('sb-school').textContent  = schoolName;
   document.getElementById('sb-name').textContent    = profile.full_name;
@@ -2325,14 +2311,51 @@ const AI_MODEL = 'claude-sonnet-4-20250514';
 function getApiKey() { return sessionStorage.getItem('sm_api_key') || ''; }
 
 function promptApiKey() {
-  const k = prompt('Enter your Anthropic API key (sk-ant-...) to use AI features:');
-  if (k?.startsWith('sk-')) { sessionStorage.setItem('sm_api_key', k); showToast('✓ API key saved!'); return k; }
-  return null;
+  // Show inline modal instead of browser prompt()
+  showApiKeyModal();
+  return null; // caller will handle the no-key case
+}
+
+function showApiKeyModal(onSuccess) {
+  const existing = document.getElementById('api-key-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'api-key-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
+  modal.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:28px 30px;width:100%;max-width:440px;box-shadow:0 16px 48px rgba(0,0,0,.5)">
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px">🤖 AI Features</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.6">
+        Enter your Anthropic API key to use flashcards, explanations, audio overviews, and mind maps.
+        Your key is stored only in this browser session and never sent to our servers.
+        <br/><br/>Get a key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent2)">console.anthropic.com</a>
+      </div>
+      <input id="api-key-input" type="password" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);margin-bottom:12px;font-family:var(--font)" placeholder="sk-ant-..."/>
+      <div style="display:flex;gap:8px">
+        <button onclick="saveApiKey()" style="flex:1;padding:10px;border-radius:10px;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font)">Save Key</button>
+        <button onclick="document.getElementById('api-key-modal').remove()" style="padding:10px 16px;border-radius:10px;background:var(--bg4);color:var(--text2);border:1px solid var(--border2);font-size:14px;cursor:pointer;font-family:var(--font)">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('api-key-input')?.focus(), 100);
+}
+
+function saveApiKey() {
+  const k = document.getElementById('api-key-input')?.value?.trim();
+  if (!k?.startsWith('sk-')) {
+    showToast('Please enter a valid key starting with sk-ant-...');
+    return;
+  }
+  sessionStorage.setItem('sm_api_key', k);
+  document.getElementById('api-key-modal')?.remove();
+  showToast('✓ API key saved for this session');
+  // Refresh settings page if open
+  if (page === 'settings') renderSettings();
 }
 
 async function ai(system, user, imageData) {
   let key = getApiKey();
-  if (!key) { key = promptApiKey(); if (!key) throw new Error('No API key'); }
+  if (!key) { showApiKeyModal(); throw new Error('No API key'); }
   const content = [];
   if (imageData) content.push({ type:'image', source:{ type:'base64', media_type:imageData.type, data:imageData.data }});
   content.push({ type:'text', text: user });
@@ -2348,7 +2371,7 @@ async function ai(system, user, imageData) {
 
 async function aiChat(messages, system) {
   let key = getApiKey();
-  if (!key) { key = promptApiKey(); if (!key) throw new Error('No API key'); }
+  if (!key) { showApiKeyModal(); throw new Error('No API key'); }
   const res = await fetch(AI_URL, {
     method:'POST',
     headers:{ 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
@@ -4589,11 +4612,26 @@ function renderUserList() {
 }
 
 async function changeUserRole(userId, newRole, selectEl) {
-  if (!confirm(`Change this user's role to ${newRole}?`)) {
+  // GOVERNANCE: Principal role cannot be assigned via user management.
+  // Principal status is set exclusively via the claim_principal DB function
+  // or direct SQL by a platform administrator.
+  if (newRole === 'principal') {
+    showToast('Principal role cannot be assigned here. Contact platform support.');
     selectEl.value = allUsers.find(u => u.id === userId)?.role || 'student';
     return;
   }
-  const EMOJIS = { student:'🎒', teacher:'👩‍🏫', parent:'👨‍👩‍👧', admin:'🏫', principal:'🎓' };
+  // Also prevent demotion of the current principal
+  const target = allUsers.find(u => u.id === userId);
+  if (target?.role === 'principal') {
+    showToast('The principal role cannot be changed here. Contact platform support.');
+    selectEl.value = 'principal';
+    return;
+  }
+  if (!confirm(`Change ${target?.full_name || 'this user'}\'s role to ${newRole}?`)) {
+    selectEl.value = target?.role || 'student';
+    return;
+  }
+  const EMOJIS = { student:'🎒', teacher:'👩‍🏫', parent:'👨‍👩‍👧', admin:'🏫' };
   const { error } = await db.from('profiles').update({
     role: newRole,
     avatar_emoji: EMOJIS[newRole] || '👤'
@@ -4843,7 +4881,7 @@ function renderSettings() {
         Your key is stored only in this browser session and never sent to our servers.
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn-sm primary" onclick="promptApiKey()">
+        <button class="btn-sm primary" onclick="showApiKeyModal()">
           ${getApiKey() ? '🔑 Update API Key' : '＋ Set API Key'}
         </button>
         ${getApiKey()
